@@ -61,10 +61,10 @@ class SplashScreenState extends State<SplashScreen> {
 
   Widget buildSplashScreenContent() {
     return Opacity(
-      opacity: _hideSplash ? 0.0 : 1.0, // Langsung hilangkan tampilan saat transisi mulai
+      opacity: _hideSplash ? 0.0 : 1.0, 
       child: Stack(
         children: [
-          // Latar belakang hijau hanya setengah atas
+         
           Positioned.fill(
             child: Container(
               color: Colors.green,
