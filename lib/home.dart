@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:carousel_slider/carousel_slider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:guide_me/Login.dart';
 
 void main() {
   runApp(const MyApp());
@@ -21,20 +24,53 @@ class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
   @override
-  _HomePageState createState() => _HomePageState();
+  HomePageState createState() => HomePageState();
 }
 
-class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
+class HomePageState extends State<HomePage>
+    with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  String? userRole;
+  bool _isLoggedIn = FirebaseAuth.instance.currentUser != null;
 
   @override
   void initState() {
     super.initState();
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(microseconds: 400),
     );
+
+    _checkUserRole();
+    _checkLoginStatus();
+  }
+
+  Future<void> _checkUserRole() async {
+    String? role = await getUserRole();
+    setState(() {
+      userRole = role;
+    });
+  }
+
+  Future<String?> getUserRole() async {
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      DocumentSnapshot doc =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+      return doc['role'];
+    }
+    return null;
+  }
+
+  Future<void> _checkLoginStatus() async {
+    User? user = FirebaseAuth.instance.currentUser;
+    setState(() {
+      _isLoggedIn = user != null; // Jika ada user, berarti sudah login
+    });
   }
 
   @override
@@ -44,25 +80,24 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   void _toggleDrawer() {
-  if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
-    Navigator.of(context).pop();
-    _animationController.reverse();
-  } else {
-    _scaffoldKey.currentState?.openDrawer();
-    _animationController.forward();
+    if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
+      Navigator.of(context).pop();
+      _animationController.reverse();
+    } else {
+      _scaffoldKey.currentState?.openDrawer();
+      _animationController.forward();
+    }
   }
-}
-
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-  onDrawerChanged: (isOpen) {
-    if (!isOpen) {
-      _animationController.reverse();
-    }
-  },
+      onDrawerChanged: (isOpen) {
+        if (!isOpen) {
+          _animationController.reverse();
+        }
+      },
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -80,71 +115,152 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 ),
                 onPressed: _toggleDrawer,
               ),
-             
             ],
           ),
         ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 10),
-            child: ElevatedButton.icon(
+            child: ElevatedButton(
               onPressed: () {},
-              icon: const Icon(Icons.send, color: Colors.white, size: 18),
-              label: const Text("Jelajah", style: TextStyle(color: Colors.white)),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
+                backgroundColor: const Color(0xFF5ABB4D),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(30), // Membulatkan tombol
                 ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 15,
+                  vertical: 10,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    "Jelajah",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        Icons.telegram,
+                        color: Colors.black,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
         ],
       ),
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            DrawerHeader(
-              decoration: const BoxDecoration(color: Colors.green),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Image.asset('assets/images/logo1.png', width: 120, height: 120),
-                  const SizedBox(height: 10),
-                
-                ],
+      drawer: SizedBox(
+        width: MediaQuery.of(context).size.width * 0.5,
+        child: Drawer(
+          child: ListView(
+            padding: EdgeInsets.zero,
+
+            children: [
+              DrawerHeader(
+                decoration: const BoxDecoration(color: Color(0xFF5ABB4D)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Image.asset(
+                      'assets/images/logo1.png',
+                      width: 123,
+                      height: 120,
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                ),
               ),
-            ),
-           
-            ListTile(
-              leading: const Icon(Icons.map),
-              title: const Text("Destinasi"),
-              onTap: () {},
-            ),
-            ListTile(
-              leading: const Icon(Icons.contact_mail),
-              title: const Text("Kontak"),
-              onTap: () {},
-            ),
-            ListTile(
-              leading: const Icon(Icons.confirmation_number),
-              title: const Text("Tiket"),
-              onTap: () {},
-            ),
-            ListTile(
-              leading: const Icon(Icons.image),
-              title: const Text("Galeri"),
-              onTap: () {},
-            ),
-            ListTile(
-              leading: const Icon(Icons.login),
-              title: const Text("Masuk"),
-              onTap: () {},
-            ),
-          ],
+              ListTile(
+                leading: const Icon(Icons.map),
+                title: const Text("Destinasi"),
+                onTap: () {},
+              ),
+              ListTile(
+                leading: const Icon(Icons.event),
+                title: const Text("Event"),
+                onTap: () {},
+              ),
+              ListTile(
+                leading: const Icon(Icons.confirmation_number),
+                title: const Text("Tiket"),
+                onTap: () {},
+              ),
+              ListTile(
+                leading: const Icon(Icons.image),
+                title: const Text("Galeri"),
+                onTap: () {},
+              ),
+              if (_isLoggedIn && userRole != "owner")
+                ListTile(
+                  leading: const Icon(Icons.admin_panel_settings),
+                  title: const Text("Request Role"),
+                  onTap: () {},
+                ),
+              if (userRole == "owner")
+                ListTile(
+                  leading: const Icon(Icons.calendar_today),
+                  title: const Text("Add Event"),
+                  onTap: () {},
+                ),
+
+              ListTile(
+                leading: Icon(
+                  FirebaseAuth.instance.currentUser != null
+                      ? Icons.logout
+                      : Icons.login,
+                ),
+                title: Text(
+                  FirebaseAuth.instance.currentUser != null
+                      ? "Keluar"
+                      : "Masuk",
+                ),
+                onTap: () async {
+                  if (FirebaseAuth.instance.currentUser != null) {
+                    // Jika user sudah login, lakukan logout
+                    await FirebaseAuth.instance.signOut();
+                    setState(() {
+                      userRole = null; // Reset userRole setelah logout
+                    });
+                    // Arahkan kembali ke halaman login
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const LoginScreen(),
+                      ),
+                    );
+                  } else {
+                    // Jika belum login, arahkan ke halaman login
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const LoginScreen(),
+                      ),
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
         ),
       ),
+
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -154,25 +270,27 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 CarouselSlider(
                   options: CarouselOptions(
                     height: 250.0,
+
                     autoPlay: true,
                     autoPlayInterval: const Duration(seconds: 3),
                     viewportFraction: 1.0,
                   ),
-                  items: [
-                    'assets/images/slider1.png',
-                    'assets/images/slider2.png',
-                    'assets/images/slider3.png',
-                  ].map((imagePath) {
-                    return Container(
-                      width: MediaQuery.of(context).size.width,
-                      decoration: BoxDecoration(
-                        image: DecorationImage(
-                          image: AssetImage(imagePath),
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    );
-                  }).toList(),
+                  items:
+                      [
+                        'assets/images/slider1.png',
+                        'assets/images/slider2.png',
+                        'assets/images/slider3.png',
+                      ].map((imagePath) {
+                        return Container(
+                          width: MediaQuery.of(context).size.width,
+                          decoration: BoxDecoration(
+                            image: DecorationImage(
+                              image: AssetImage(imagePath),
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        );
+                      }).toList(),
                 ),
                 Positioned(
                   top: 50,
@@ -183,23 +301,64 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     children: [
                       const Text(
                         "Selamat Datang di Guide Me",
-                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Color(0xFF5ABB4D),
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 5),
                       const Text(
                         "Penunjuk Arah Tempat Wisata Batam",
-                        style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 10),
-                      ElevatedButton.icon(
+                      ElevatedButton(
                         onPressed: () {},
-                        icon: const Icon(Icons.send, color: Colors.white, size: 18),
-                        label: const Text("Lihat Destinasi", style: TextStyle(color: Colors.white)),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
+                          backgroundColor: const Color(0xFF5ABB4D),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(
+                              30,
+                            ), 
                           ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 15,
+                            vertical: 10,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              "Lihat destinasi",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              width: 24,
+                              height: 24,
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.telegram, 
+                                  color: Colors.black, 
+                                  size: 16, 
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -223,10 +382,22 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 crossAxisSpacing: 10,
                 mainAxisSpacing: 10,
                 children: const [
-                  WisataCard(title: "Mega Wisata Ocarina", image: "assets/images/slider2.png"),
-                  WisataCard(title: "Welcome To Batam", image: "assets/images/slider1.png"),
-                  WisataCard(title: "Pantai Nongsa", image: "assets/images/slider3.png"),
-                  WisataCard(title: "Jembatan Barelang", image: "assets/images/slider1.png"),
+                  WisataCard(
+                    title: "Mega Wisata Ocarina",
+                    image: "assets/images/slider2.png",
+                  ),
+                  WisataCard(
+                    title: "Welcome To Batam",
+                    image: "assets/images/slider1.png",
+                  ),
+                  WisataCard(
+                    title: "Pantai Nongsa",
+                    image: "assets/images/slider3.png",
+                  ),
+                  WisataCard(
+                    title: "Jembatan Barelang",
+                    image: "assets/images/slider1.png",
+                  ),
                 ],
               ),
             ),
@@ -246,22 +417,30 @@ class WisataCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        image: DecorationImage(image: AssetImage(image), fit: BoxFit.cover),
-      ),
-      child: Align(
-        alignment: Alignment.bottomCenter,
-        child: Container(
-          padding: const EdgeInsets.all(8.0),
-          color: Colors.black.withOpacity(0.6),
-          child: Text(
-            title,
-            style: const TextStyle(color: Colors.white, fontSize: 14),
-            textAlign: TextAlign.center,
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      elevation: 5,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(10),
+                topRight: Radius.circular(10),
+              ),
+              child: Image.asset(image, fit: BoxFit.cover),
+            ),
           ),
-        ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text(
+              title,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -272,15 +451,21 @@ class CustomBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BottomNavigationBar(
-      backgroundColor: Colors.green,
-      selectedItemColor: Colors.white,
-      unselectedItemColor: Colors.white70,
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-        BottomNavigationBarItem(icon: Icon(Icons.search), label: "Search"),
-        BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
-      ],
+    return Container(
+      height: 60,
+      margin: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF5ABB4D),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: const [
+          Icon(Icons.home, color: Colors.white, size: 28),
+          Icon(Icons.search, color: Colors.white, size: 28),
+          Icon(Icons.person, color: Colors.white, size: 28),
+        ],
+      ),
     );
   }
 }

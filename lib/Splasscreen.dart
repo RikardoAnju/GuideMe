@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:guide_me/home.dart';
+import 'package:guide_me/Home.dart';
 import 'dart:async';
 
 class SplashScreen extends StatefulWidget {
@@ -30,31 +30,35 @@ class SplashScreenState extends State<SplashScreen> {
       });
     });
 
-    // Navigasi ke Home setelah 3 detik
+  
     Timer(const Duration(seconds: 3), () {
       if (mounted) {
         setState(() {
-          _hideSplash = true; // Langsung hilangkan tampilan SplashScreen
+          _hideSplash = true; 
         });
 
         Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 500),
-            pageBuilder: (context, animation, secondaryAnimation) => const HomePage(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(1.0, 0.0), // Mulai dari kanan
-                  end: Offset.zero, // Masuk ke tengah
-                ).animate(CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeOut, // Gerakan lebih halus
-                )),
-                child: child,
-              );
-            },
-          ),
-        );
+  PageRouteBuilder(
+    transitionDuration: const Duration(milliseconds: 700), 
+    pageBuilder: (context, animation, secondaryAnimation) => const HomePage(),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      return FadeTransition(
+        opacity: animation,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0.0, 1.0), 
+            end: Offset.zero, 
+          ).animate(CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeInOut, 
+          )),
+          child: child,
+        ),
+      );
+    },
+  ),
+);
+
       }
     });
   }
@@ -67,7 +71,7 @@ class SplashScreenState extends State<SplashScreen> {
          
           Positioned.fill(
             child: Container(
-              color: Colors.green,
+              color: Color(0xFF5ABB4D),
               height: MediaQuery.of(context).size.height * 0.2,
             ),
           ),
