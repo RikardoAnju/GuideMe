@@ -2,14 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:guide_me/Register.dart';
+
 import 'package:guide_me/adminpage.dart';
 import 'Home.dart';
 
 void main() {
-  runApp(MaterialApp(
-    debugShowCheckedModeBanner: false,
-    home: LoginScreen(),
-  ));
+  runApp(MaterialApp(debugShowCheckedModeBanner: false, home: LoginScreen()));
 }
 
 class LoginScreen extends StatefulWidget {
@@ -29,14 +27,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _checkEmailVerification(String userId) async {
     User? user = FirebaseAuth.instance.currentUser;
-    await user?.reload(); // Reload data dari FirebaseAuth
-    user = FirebaseAuth.instance.currentUser; // Ambil data terbaru
+    await user?.reload();
+    user = FirebaseAuth.instance.currentUser;
 
     if (user != null && user.emailVerified) {
       try {
-        await FirebaseFirestore.instance.collection('users').doc(userId).update({
-          'emailVerified': true,
-        });
+        await FirebaseFirestore.instance.collection('users').doc(userId).update(
+          {'emailVerified': true},
+        );
         print("Status emailVerified berhasil diperbarui di Firestore!");
       } catch (e) {
         print("Gagal memperbarui emailVerified: $e");
@@ -121,7 +119,7 @@ class _LoginScreenState extends State<LoginScreen> {
       } else {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const HomePage ()),
+          MaterialPageRoute(builder: (context) => const HomePage()),
         );
       }
     } else {
@@ -132,16 +130,17 @@ class _LoginScreenState extends State<LoginScreen> {
   void _showError(String message) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Login Error'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Login Error'),
+            content: Text(message),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -174,16 +173,34 @@ class _LoginScreenState extends State<LoginScreen> {
               icon: const Icon(Icons.arrow_back, color: Colors.white, size: 30),
             ),
           ),
+          Positioned(
+            top: 10,
+            left: 20,
+            child: IconButton(
+              onPressed: () {
+                if (Navigator.canPop(context)) {
+                  Navigator.pop(context);
+                } else {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (context) => HomePage()),
+                  );
+                }
+              },
+              icon: const Icon(Icons.arrow_back, color: Colors.white, size: 30),
+            ),
+          ),
 
           Positioned(
-            top: 40,
+            top: 30,
             left: 0,
             right: 0,
             child: Center(
               child: Image.asset(
-                "assets/images/logo5.png",
-                width: 100,
-                height: 100,
+                'assets/images/logo5.png', 
+                width: 120, 
+                height: 120,
+                fit: BoxFit.contain,
               ),
             ),
           ),
@@ -220,7 +237,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     blurRadius: 10,
                     spreadRadius: 2,
                     offset: const Offset(0, 4),
-                  )
+                  ),
                 ],
               ),
               child: Column(
@@ -274,12 +291,18 @@ class _LoginScreenState extends State<LoginScreen> {
                           borderRadius: BorderRadius.circular(10),
                         ),
                       ),
-                      child: _isLoading
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text(
-                              "LOGIN",
-                              style: TextStyle(color: Colors.white, fontSize: 16),
-                            ),
+                      child:
+                          _isLoading
+                              ? const CircularProgressIndicator(
+                                color: Colors.white,
+                              )
+                              : const Text(
+                                "LOGIN",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                ),
+                              ),
                     ),
                   ),
 
