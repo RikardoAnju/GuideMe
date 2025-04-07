@@ -42,23 +42,23 @@ class HomePageState extends State<HomePage>
   String? _userName;
   // Add a variable to track current carousel index
   int _currentCarouselIndex = 0;
-  
+
   // Updated carousel items with titles
   final List<Map<String, String>> _carouselItems = [
     {
       'image': 'assets/images/slider1.png',
       'title': 'Welcome to Batam',
-      'description': 'Discover the beauty of the island'
+      'description': 'Discover the beauty of the island',
     },
     {
       'image': 'assets/images/slider2.png',
       'title': 'Mega Wisata Ocarina',
-      'description': 'Explore our premium attractions'
+      'description': 'Explore our premium attractions',
     },
     {
       'image': 'assets/images/slider3.png',
       'title': 'Pantai Nongsa',
-      'description': 'Enjoy the pristine beaches'
+      'description': 'Enjoy the pristine beaches',
     },
   ];
 
@@ -137,7 +137,7 @@ class HomePageState extends State<HomePage>
   Widget build(BuildContext context) {
     // Use a constant gray color throughout
     const Color grayColor = Color(0xFFEEEEEE);
-    
+
     return Scaffold(
       key: _scaffoldKey,
       onDrawerChanged: (isOpen) {
@@ -218,13 +218,13 @@ class HomePageState extends State<HomePage>
                 ),
                 onTap: () async {
                   if (FirebaseAuth.instance.currentUser != null) {
-                    // Jika user sudah login, lakukan logout
+                   
                     await FirebaseAuth.instance.signOut();
                     setState(() {
-                      userRole = null; // Reset userRole setelah logout
-                      _userName = null; // Reset username setelah logout
+                      userRole = null; 
+                      _userName = null; 
                     });
-                    // Arahkan kembali ke halaman login
+                   
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
@@ -232,7 +232,7 @@ class HomePageState extends State<HomePage>
                       ),
                     );
                   } else {
-                    // Jika belum login, arahkan ke halaman login
+                    
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -248,16 +248,13 @@ class HomePageState extends State<HomePage>
       ),
 
       body: Container(
-        // Use gray color for entire body container
+      
         color: grayColor,
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Welcome message with gray background
-              
-
-              // Custom top bar with search and icons
+             
               Container(
                 padding: const EdgeInsets.only(
                   top: 10,
@@ -282,10 +279,22 @@ class HomePageState extends State<HomePage>
                           hintText: "Search",
                           prefixIcon: const Icon(Icons.search),
                           filled: true,
-                          fillColor: Colors.white.withOpacity(0.8),
+                          fillColor: Colors.white, 
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(20),
                             borderSide: BorderSide.none,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide:
+                                BorderSide
+                                    .none, 
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide:
+                                BorderSide
+                                    .none,
                           ),
                           contentPadding: const EdgeInsets.symmetric(
                             vertical: 10.0,
@@ -300,35 +309,35 @@ class HomePageState extends State<HomePage>
               Container(
                 padding: const EdgeInsets.only(top: 30, left: 16, right: 16),
                 color: grayColor,
-                child: _isLoggedIn && _userName != null
-                    ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "Hello, $_userName",
-                            style: GoogleFonts.poppins(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w500,
-                              color: const Color(0xFF000000),
+                child:
+                    _isLoggedIn && _userName != null
+                        ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Hello, $_userName",
+                              style: GoogleFonts.poppins(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w500,
+                                color: const Color(0xFF000000),
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            "Welcome to GuideME",
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w400,
-                              color: const Color(0xFF808080),
+                            const SizedBox(height: 4),
+                            Text(
+                              "Welcome to GuideME",
+                              style: GoogleFonts.poppins(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w400,
+                                color: const Color(0xFF808080),
+                              ),
                             ),
-                          ),
-                          
-                        ],
-                      )
-                    : const SizedBox.shrink(),          
+                          ],
+                        )
+                        : const SizedBox.shrink(),
               ),
               const SizedBox(height: 20),
 
-              // Enhanced Carousel Slider with text overlay and indicators
+              
               Container(
                 color: grayColor,
                 child: Column(
@@ -348,92 +357,114 @@ class HomePageState extends State<HomePage>
                               });
                             },
                           ),
-                          items: _carouselItems.map((item) {
-                            return Builder(
-                              builder: (BuildContext context) {
-                                return Container(
-                                  width: MediaQuery.of(context).size.width,
-                                  margin: const EdgeInsets.symmetric(horizontal: 2.0),
-                                  child: Stack(
-                                    children: [
-                                      // Image
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(15),
-                                        child: Image.asset(
-                                          item['image']!,
-                                          fit: BoxFit.cover,
-                                          width: double.infinity,
-                                          height: double.infinity,
-                                        ),
+                          items:
+                              _carouselItems.map((item) {
+                                return Builder(
+                                  builder: (BuildContext context) {
+                                    return Container(
+                                      width: MediaQuery.of(context).size.width,
+                                      margin: const EdgeInsets.symmetric(
+                                        horizontal: 2.0,
                                       ),
-                                      // Gradient overlay for better text visibility
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(15),
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            gradient: LinearGradient(
-                                              begin: Alignment.topCenter,
-                                              end: Alignment.bottomCenter,
-                                              colors: [
-                                                Colors.transparent,
-                                                Colors.black.withOpacity(0.6),
-                                              ],
-                                              stops: const [0.6, 1.0],
+                                      child: Stack(
+                                        children: [
+                                          // Image
+                                          ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              15,
+                                            ),
+                                            child: Image.asset(
+                                              item['image']!,
+                                              fit: BoxFit.cover,
+                                              width: double.infinity,
+                                              height: double.infinity,
                                             ),
                                           ),
-                                        ),
-                                      ),
-                                      // Text overlay
-                                      Positioned(
-                                        bottom: 0,
-                                        left: 0,
-                                        right: 0,
-                                        child: Container(
-                                          padding: const EdgeInsets.all(16.0),
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                item['title']!,
-                                                style: GoogleFonts.poppins(
-                                                  color: Colors.white,
-                                                  fontSize: 20,
-                                                  fontWeight: FontWeight.bold,
-                                                  shadows: [
-                                                    Shadow(
-                                                      blurRadius: 3.0,
-                                                      color: Colors.black.withOpacity(0.5),
-                                                      offset: const Offset(0, 1),
+                                          // Gradient overlay for better text visibility
+                                          ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              15,
+                                            ),
+                                            child: Container(
+                                              decoration: BoxDecoration(
+                                                gradient: LinearGradient(
+                                                  begin: Alignment.topCenter,
+                                                  end: Alignment.bottomCenter,
+                                                  colors: [
+                                                    Colors.transparent,
+                                                    Colors.black.withOpacity(
+                                                      0.6,
                                                     ),
                                                   ],
+                                                  stops: const [0.6, 1.0],
                                                 ),
                                               ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                item['description']!,
-                                                style: GoogleFonts.poppins(
-                                                  color: Colors.white,
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w400,
-                                                  shadows: [
-                                                    Shadow(
-                                                      blurRadius: 2.0,
-                                                      color: Colors.black.withOpacity(0.5),
-                                                      offset: const Offset(0, 1),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ],
+                                            ),
                                           ),
-                                        ),
+                                          // Text overlay
+                                          Positioned(
+                                            bottom: 0,
+                                            left: 0,
+                                            right: 0,
+                                            child: Container(
+                                              padding: const EdgeInsets.all(
+                                                16.0,
+                                              ),
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    item['title']!,
+                                                    style: GoogleFonts.poppins(
+                                                      color: Colors.white,
+                                                      fontSize: 20,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      shadows: [
+                                                        Shadow(
+                                                          blurRadius: 3.0,
+                                                          color: Colors.black
+                                                              .withOpacity(0.5),
+                                                          offset: const Offset(
+                                                            0,
+                                                            1,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    item['description']!,
+                                                    style: GoogleFonts.poppins(
+                                                      color: Colors.white,
+                                                      fontSize: 14,
+                                                      fontWeight:
+                                                          FontWeight.w400,
+                                                      shadows: [
+                                                        Shadow(
+                                                          blurRadius: 2.0,
+                                                          color: Colors.black
+                                                              .withOpacity(0.5),
+                                                          offset: const Offset(
+                                                            0,
+                                                            1,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                    ],
-                                  ),
+                                    );
+                                  },
                                 );
-                              },
-                            );
-                          }).toList(),
+                              }).toList(),
                         ),
                       ),
                     ),
@@ -441,24 +472,32 @@ class HomePageState extends State<HomePage>
                     // Add indicator dots
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: _carouselItems.asMap().entries.map((entry) {
-                        return Container(
-                          width: 8.0,
-                          height: 8.0,
-                          margin: const EdgeInsets.symmetric(horizontal: 4.0),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _currentCarouselIndex == entry.key
-                                ? const Color(0xFF5ABB4D) // Active dot color (green)
-                                : Colors.grey.withOpacity(0.5), // Inactive dot color
-                          ),
-                        );
-                      }).toList(),
+                      children:
+                          _carouselItems.asMap().entries.map((entry) {
+                            return Container(
+                              width: 8.0,
+                              height: 8.0,
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 4.0,
+                              ),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color:
+                                    _currentCarouselIndex == entry.key
+                                        ? const Color(
+                                          0xFF5ABB4D,
+                                        ) // Active dot color (green)
+                                        : Colors.grey.withOpacity(
+                                          0.5,
+                                        ), // Inactive dot color
+                              ),
+                            );
+                          }).toList(),
                     ),
                   ],
                 ),
               ),
-              
+
               // Enhanced Popular destinations section with improved cards
               Container(
                 padding: const EdgeInsets.all(16.0),
@@ -490,7 +529,7 @@ class HomePageState extends State<HomePage>
                       crossAxisCount: 2,
                       crossAxisSpacing: 12,
                       mainAxisSpacing: 16,
-                      childAspectRatio: 0.8, // More rectangular cards for better visibility
+                      childAspectRatio: 0.8,
                       children: [
                         // Improved attractive cards
                         EnhancedWisataCard(
@@ -534,8 +573,8 @@ class EnhancedWisataCard extends StatelessWidget {
   final double rating;
 
   const EnhancedWisataCard({
-    super.key, 
-    required this.title, 
+    super.key,
+    required this.title,
     required this.image,
     required this.rating,
   });
@@ -558,12 +597,7 @@ class EnhancedWisataCard extends StatelessWidget {
         child: Stack(
           children: [
             // Background image
-            Positioned.fill(
-              child: Image.asset(
-                image,
-                fit: BoxFit.cover,
-              ),
-            ),
+            Positioned.fill(child: Image.asset(image, fit: BoxFit.cover)),
             // Gradient overlay
             Positioned.fill(
               child: Container(
@@ -571,10 +605,7 @@ class EnhancedWisataCard extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withOpacity(0.7),
-                    ],
+                    colors: [Colors.transparent, Colors.black.withOpacity(0.7)],
                     stops: const [0.6, 1.0],
                   ),
                 ),
@@ -592,11 +623,7 @@ class EnhancedWisataCard extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.star,
-                      color: Colors.amber,
-                      size: 16,
-                    ),
+                    const Icon(Icons.star, color: Colors.amber, size: 16),
                     const SizedBox(width: 2),
                     Text(
                       rating.toString(),

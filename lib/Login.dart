@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:guide_me/Register.dart';
 
 import 'package:guide_me/adminpage.dart';
+import 'package:guide_me/forgotpassword.dart';
+
 import 'Home.dart';
 
 void main() {
@@ -270,7 +272,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () {},
+                      onPressed: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (context) => ForgotPassword())
+                        );
+
+                      },
                       child: const Text(
                         "Forgot password?",
                         style: TextStyle(color: Colors.blue),

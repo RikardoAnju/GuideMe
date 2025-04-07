@@ -1,21 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:guide_me/Splasscreen.dart';
-
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:guide_me/Splasscreen.dart';
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Memuat file .env dan menampilkan error jika gagal
-  try {
-    await dotenv.load(fileName: "assets/.env");
-    debugPrint('✅ File .env berhasil dimuat.');
-  } catch (e) {
-    debugPrint('❌ Gagal memuat file .env: $e');
-  }
+  // Load environment variables
+  await dotenv.load(fileName: "assets/.env");
 
-  // Inisialisasi Firebase
   try {
     await Firebase.initializeApp(
       options: FirebaseOptions(
@@ -26,9 +20,9 @@ Future<void> main() async {
         storageBucket: dotenv.env['FIREBASE_STORAGE_BUCKET'] ?? '',
       ),
     );
-    debugPrint('✅ Firebase berhasil diinisialisasi.');
+    print('✅ Firebase initialized successfully.');
   } catch (e) {
-    debugPrint('❌ Error saat inisialisasi Firebase: $e');
+    print('❌ Error initializing Firebase: $e');
   }
 
   runApp(const MyApp());
@@ -37,20 +31,20 @@ Future<void> main() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  @override
+ @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return const MaterialApp(
       debugShowCheckedModeBanner: false,
       home: SplashScreen(),
-    );
+    ); 
   }
 }
 
-// Fungsi untuk mendapatkan API Key Brevo dari .env
+// Fungsi untuk menggunakan API Key Brevo dari .env
 String getBrevoApiKey() {
   final apiKey = dotenv.env['SENDINBLUE_API_KEY'];
   if (apiKey == null || apiKey.isEmpty) {
-    debugPrint('❌ API Key Brevo tidak ditemukan di .env');
+    print('❌ API Key Brevo tidak ditemukan di .env');
   }
   return apiKey ?? '';
 }
