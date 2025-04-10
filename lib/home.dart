@@ -11,7 +11,6 @@ void main() {
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -28,7 +27,6 @@ class MyApp extends StatelessWidget {
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
-
   @override
   HomePageState createState() => HomePageState();
 }
@@ -40,9 +38,15 @@ class HomePageState extends State<HomePage>
   String? userRole;
   bool _isLoggedIn = FirebaseAuth.instance.currentUser != null;
   String? _userName;
+  
+  // ScrollController for animation effects
+  final ScrollController _scrollController = ScrollController();
+  bool _showAppBarTitle = false;
+  
   // Add a variable to track current carousel index
   int _currentCarouselIndex = 0;
-
+  // Add a variable to track selected category
+  String _selectedCategory = 'All';
   // Updated carousel items with titles
   final List<Map<String, String>> _carouselItems = [
     {
@@ -61,18 +65,105 @@ class HomePageState extends State<HomePage>
       'description': 'Enjoy the pristine beaches',
     },
   ];
-
+  
+  // Categories with modern icons
+  final List<Map<String, dynamic>> _categories = [
+    {'name': 'All', 'icon': Icons.grid_view_rounded},
+    {'name': 'Beach', 'icon': Icons.beach_access},
+    {'name': 'Café', 'icon': Icons.coffee_rounded},
+    {'name': 'Park', 'icon': Icons.nature_people_rounded},
+    {'name': 'Mall', 'icon': Icons.shopping_bag_rounded},
+    {'name': 'Hotel', 'icon': Icons.hotel_rounded},
+    {'name': 'History', 'icon': Icons.museum_rounded},
+  ];
+  
+  // Destination items - Popular Tourist Spots
+  final List<Map<String, dynamic>> _popularDestinations = [
+    {
+      'title': "Mega Wisata Ocarina",
+      'image': "assets/images/slider2.png",
+      'rating': 4.8,
+      'category': 'Park',
+      'location': 'Batam'
+    },
+    {
+      'title': "Pantai Nongsa",
+      'image': "assets/images/slider3.png",
+      'rating': 4.7,
+      'category': 'Beach',
+      'location': 'Batam'
+    },
+    {
+      'title': "Jembatan Barelang",
+      'image': "assets/images/slider1.png",
+      'rating': 4.9,
+      'category': 'History',
+      'location': 'Batam'
+    },
+    {
+      'title': "Nagoya Hill Mall",
+      'image': "assets/images/slider2.png",
+      'rating': 4.6,
+      'category': 'Mall',
+      'location': 'Batam'
+    },
+  ];
+  
+  // Other tourist attractions - Separated from popular destinations
+  final List<Map<String, dynamic>> _otherDestinations = [
+    {
+      'title': "Welcome Monument",
+      'image': "assets/images/slider1.png",
+      'rating': 4.5,
+      'category': 'History',
+      'location': 'Batam'
+    },
+    {
+      'title': "Harbor Bay",
+      'image': "assets/images/slider3.png",
+      'rating': 4.4,
+      'category': 'Beach',
+      'location': 'Batam'
+    },
+    {
+      'title': "Joyful Café",
+      'image': "assets/images/slider1.png",
+      'rating': 4.7,
+      'category': 'Café',
+      'location': 'Batam'
+    },
+    {
+      'title': "Mercure Hotel",
+      'image': "assets/images/slider2.png",
+      'rating': 4.8,
+      'category': 'Hotel',
+      'location': 'Batam'
+    },
+  ];
+  
   @override
   void initState() {
     super.initState();
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(microseconds: 400),
+      duration: const Duration(milliseconds: 400), // Fixed milliseconds instead of microseconds
     );
-
     _checkUserRole();
     _checkLoginStatus();
     _fetchUserName();
+    
+    // Add scroll listener for animations
+    _scrollController.addListener(_onScroll);
+  }
+  
+  void _onScroll() {
+    // Show/hide app bar title based on scroll position
+    final showTitle = _scrollController.offset > 150;
+    if (showTitle != _showAppBarTitle) {
+      setState(() {
+        _showAppBarTitle = showTitle;
+      });
+    }
   }
 
   Future<void> _checkUserRole() async {
@@ -90,7 +181,6 @@ class HomePageState extends State<HomePage>
               .collection('users')
               .doc(user.uid)
               .get();
-
       setState(() {
         _userName = doc['username'];
       });
@@ -119,6 +209,8 @@ class HomePageState extends State<HomePage>
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     _animationController.dispose();
     super.dispose();
   }
@@ -137,7 +229,6 @@ class HomePageState extends State<HomePage>
   Widget build(BuildContext context) {
     // Use a constant gray color throughout
     const Color grayColor = Color(0xFFEEEEEE);
-
     return Scaffold(
       key: _scaffoldKey,
       onDrawerChanged: (isOpen) {
@@ -147,7 +238,6 @@ class HomePageState extends State<HomePage>
       },
       // Set the scaffold background to gray
       backgroundColor: grayColor,
-
       drawer: SizedBox(
         width: MediaQuery.of(context).size.width * 0.5,
         child: Drawer(
@@ -221,8 +311,8 @@ class HomePageState extends State<HomePage>
                    
                     await FirebaseAuth.instance.signOut();
                     setState(() {
-                      userRole = null; 
-                      _userName = null; 
+                      userRole = null;
+                      _userName = null;
                     });
                    
                     Navigator.pushReplacement(
@@ -232,7 +322,7 @@ class HomePageState extends State<HomePage>
                       ),
                     );
                   } else {
-                    
+                   
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -246,15 +336,13 @@ class HomePageState extends State<HomePage>
           ),
         ),
       ),
-
       body: Container(
-      
         color: grayColor,
         child: SingleChildScrollView(
+          controller: _scrollController, // Add the scroll controller
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-             
               Container(
                 padding: const EdgeInsets.only(
                   top: 10,
@@ -279,22 +367,18 @@ class HomePageState extends State<HomePage>
                           hintText: "Search",
                           prefixIcon: const Icon(Icons.search),
                           filled: true,
-                          fillColor: Colors.white, 
+                          fillColor: Colors.white,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(20),
                             borderSide: BorderSide.none,
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(20),
-                            borderSide:
-                                BorderSide
-                                    .none, 
+                            borderSide: BorderSide.none,
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(20),
-                            borderSide:
-                                BorderSide
-                                    .none,
+                            borderSide: BorderSide.none,
                           ),
                           contentPadding: const EdgeInsets.symmetric(
                             vertical: 10.0,
@@ -336,8 +420,6 @@ class HomePageState extends State<HomePage>
                         : const SizedBox.shrink(),
               ),
               const SizedBox(height: 20),
-
-              
               Container(
                 color: grayColor,
                 child: Column(
@@ -357,114 +439,113 @@ class HomePageState extends State<HomePage>
                               });
                             },
                           ),
-                          items:
-                              _carouselItems.map((item) {
-                                return Builder(
-                                  builder: (BuildContext context) {
-                                    return Container(
-                                      width: MediaQuery.of(context).size.width,
-                                      margin: const EdgeInsets.symmetric(
-                                        horizontal: 2.0,
+                          items: _carouselItems.map((item) {
+                            return Builder(
+                              builder: (BuildContext context) {
+                                return Container(
+                                  width: MediaQuery.of(context).size.width,
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 2.0,
+                                  ),
+                                  child: Stack(
+                                    children: [
+                                      // Image
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(
+                                          15,
+                                        ),
+                                        child: Image.asset(
+                                          item['image']!,
+                                          fit: BoxFit.cover,
+                                          width: double.infinity,
+                                          height: double.infinity,
+                                        ),
                                       ),
-                                      child: Stack(
-                                        children: [
-                                          // Image
-                                          ClipRRect(
-                                            borderRadius: BorderRadius.circular(
-                                              15,
-                                            ),
-                                            child: Image.asset(
-                                              item['image']!,
-                                              fit: BoxFit.cover,
-                                              width: double.infinity,
-                                              height: double.infinity,
+                                      // Gradient overlay for better text visibility
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(
+                                          15,
+                                        ),
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              begin: Alignment.topCenter,
+                                              end: Alignment.bottomCenter,
+                                              colors: [
+                                                Colors.transparent,
+                                                Colors.black.withOpacity(
+                                                  0.6,
+                                                ),
+                                              ],
+                                              stops: const [0.6, 1.0],
                                             ),
                                           ),
-                                          // Gradient overlay for better text visibility
-                                          ClipRRect(
-                                            borderRadius: BorderRadius.circular(
-                                              15,
-                                            ),
-                                            child: Container(
-                                              decoration: BoxDecoration(
-                                                gradient: LinearGradient(
-                                                  begin: Alignment.topCenter,
-                                                  end: Alignment.bottomCenter,
-                                                  colors: [
-                                                    Colors.transparent,
-                                                    Colors.black.withOpacity(
-                                                      0.6,
+                                        ),
+                                      ),
+                                      // Text overlay
+                                      Positioned(
+                                        bottom: 0,
+                                        left: 0,
+                                        right: 0,
+                                        child: Container(
+                                          padding: const EdgeInsets.all(
+                                            16.0,
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                item['title']!,
+                                                style: GoogleFonts.poppins(
+                                                  color: Colors.white,
+                                                  fontSize: 20,
+                                                  fontWeight:
+                                                      FontWeight.bold,
+                                                  shadows: [
+                                                    Shadow(
+                                                      blurRadius: 3.0,
+                                                      color: Colors.black
+                                                          .withOpacity(0.5),
+                                                      offset: const Offset(
+                                                        0,
+                                                        1,
+                                                      ),
                                                     ),
                                                   ],
-                                                  stops: const [0.6, 1.0],
                                                 ),
                                               ),
-                                            ),
-                                          ),
-                                          // Text overlay
-                                          Positioned(
-                                            bottom: 0,
-                                            left: 0,
-                                            right: 0,
-                                            child: Container(
-                                              padding: const EdgeInsets.all(
-                                                16.0,
-                                              ),
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    item['title']!,
-                                                    style: GoogleFonts.poppins(
-                                                      color: Colors.white,
-                                                      fontSize: 20,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      shadows: [
-                                                        Shadow(
-                                                          blurRadius: 3.0,
-                                                          color: Colors.black
-                                                              .withOpacity(0.5),
-                                                          offset: const Offset(
-                                                            0,
-                                                            1,
-                                                          ),
-                                                        ),
-                                                      ],
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                item['description']!,
+                                                style: GoogleFonts.poppins(
+                                                  color: Colors.white,
+                                                  fontSize: 14,
+                                                  fontWeight:
+                                                      FontWeight.w400,
+                                                  shadows: [
+                                                    Shadow(
+                                                      blurRadius: 2.0,
+                                                      color: Colors.black
+                                                          .withOpacity(0.5),
+                                                      offset: const Offset(
+                                                        0,
+                                                        1,
+                                                      ),
                                                     ),
-                                                  ),
-                                                  const SizedBox(height: 4),
-                                                  Text(
-                                                    item['description']!,
-                                                    style: GoogleFonts.poppins(
-                                                      color: Colors.white,
-                                                      fontSize: 14,
-                                                      fontWeight:
-                                                          FontWeight.w400,
-                                                      shadows: [
-                                                        Shadow(
-                                                          blurRadius: 2.0,
-                                                          color: Colors.black
-                                                              .withOpacity(0.5),
-                                                          offset: const Offset(
-                                                            0,
-                                                            1,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ],
+                                                  ],
+                                                ),
                                               ),
-                                            ),
+                                            ],
                                           ),
-                                        ],
+                                        ),
                                       ),
-                                    );
-                                  },
+                                    ],
+                                  ),
                                 );
-                              }).toList(),
+                              },
+                            );
+                          }).toList(),
                         ),
                       ),
                     ),
@@ -472,91 +553,238 @@ class HomePageState extends State<HomePage>
                     // Add indicator dots
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children:
-                          _carouselItems.asMap().entries.map((entry) {
-                            return Container(
-                              width: 8.0,
-                              height: 8.0,
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: 4.0,
-                              ),
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color:
-                                    _currentCarouselIndex == entry.key
-                                        ? const Color(
-                                          0xFF5ABB4D,
-                                        ) // Active dot color (green)
-                                        : Colors.grey.withOpacity(
-                                          0.5,
-                                        ), // Inactive dot color
-                              ),
-                            );
-                          }).toList(),
+                      children: _carouselItems.asMap().entries.map((entry) {
+                        return Container(
+                          width: 8.0,
+                          height: 8.0,
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: 4.0,
+                          ),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _currentCarouselIndex == entry.key
+                                ? const Color(0xFF5ABB4D) // Active dot color (green)
+                                : Colors.grey.withOpacity(0.5), // Inactive dot color
+                          ),
+                        );
+                      }).toList(),
                     ),
                   ],
                 ),
               ),
-
-              // Enhanced Popular destinations section with improved cards
+              
+              // Category selector section - IMPROVED
               Container(
-                padding: const EdgeInsets.all(16.0),
-                color: grayColor,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.location_on,
-                          color: Color(0xFF5ABB4D),
-                          size: 24,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          "Tempat Wisata Batam Terpopuler",
-                          style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                padding: const EdgeInsets.only(left: 16, top: 24, bottom: 8),
+                child: Text(
+                  "Categories",
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              
+              // Enhanced categories with modern icons and animation - FIXED ANIMATION
+              SizedBox(
+                height: 110,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  itemCount: _categories.length,
+                  itemBuilder: (context, index) {
+                    final category = _categories[index];
+                    final isSelected = _selectedCategory == category['name'];
+                    
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                      margin: EdgeInsets.only(top: isSelected ? 0 : 8.0, bottom: isSelected ? 8.0 : 0),
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _selectedCategory = category['name'];
+                          });
+                        },
+                        child: Container(
+                          width: 85,
+                          margin: const EdgeInsets.symmetric(horizontal: 6),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? const Color(0xFF5ABB4D)
+                                      : Colors.white,
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: isSelected 
+                                          ? const Color(0xFF5ABB4D).withOpacity(0.3)
+                                          : Colors.black.withOpacity(0.05),
+                                      blurRadius: isSelected ? 8 : 4,
+                                      spreadRadius: isSelected ? 2 : 0,
+                                      offset: isSelected 
+                                          ? const Offset(0, 3)
+                                          : const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Icon(
+                                  category['icon'],
+                                  color: isSelected ? Colors.white : const Color(0xFF5ABB4D).withOpacity(0.8),
+                                  size: 30,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                category['name'],
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  color: isSelected ? const Color(0xFF5ABB4D) : Colors.black87,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
                           ),
                         ),
-                      ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              
+              // Popular destinations section - FIXED CARD IMPLEMENTATION
+              Container(
+                padding: const EdgeInsets.only(left: 16, top: 16, bottom: 8),
+                color: grayColor,
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.star,
+                      color: Color(0xFF5ABB4D),
+                      size: 24,
                     ),
-                    const SizedBox(height: 16),
-                    GridView.count(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 16,
-                      childAspectRatio: 0.8,
-                      children: [
-                        // Improved attractive cards
-                        EnhancedWisataCard(
-                          title: "Mega Wisata Ocarina",
-                          image: "assets/images/slider2.png",
-                          rating: 4.8,
-                        ),
-                        EnhancedWisataCard(
-                          title: "Welcome To Batam",
-                          image: "assets/images/slider1.png",
-                          rating: 4.5,
-                        ),
-                        EnhancedWisataCard(
-                          title: "Pantai Nongsa",
-                          image: "assets/images/slider3.png",
-                          rating: 4.7,
-                        ),
-                        EnhancedWisataCard(
-                          title: "Jembatan Barelang",
-                          image: "assets/images/slider1.png",
-                          rating: 4.9,
-                        ),
-                      ],
+                    const SizedBox(width: 8),
+                    Text(
+                      "Tempat Wisata Batam Terpopuler",
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
               ),
+             
+             
+              SizedBox(
+                height: 240, // Height for the cards
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  itemCount: _popularDestinations.where((dest) =>
+                    _selectedCategory == 'All' || dest['category'] == _selectedCategory
+                  ).length,
+                  itemBuilder: (context, index) {
+                    final filteredDestinations = _popularDestinations.where((dest) =>
+                      _selectedCategory == 'All' || dest['category'] == _selectedCategory
+                    ).toList();
+                    
+                    if (filteredDestinations.isEmpty) {
+                      return const Center(
+                        child: Text("No destinations in this category"),
+                      );
+                    }
+                    
+                    final destination = filteredDestinations[index];
+                   
+                    // Use safer animation approach
+                    return AnimatedOpacity(
+                      duration: const Duration(milliseconds: 300),
+                      opacity: 1.0,
+                      child: Container(
+                        width: 180,
+                        margin: const EdgeInsets.only(right: 16),
+                        child: DestinationCard(
+                          title: destination['title'],
+                          image: destination['image'],
+                          rating: destination['rating'],
+                          location: destination['location'],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              
+              // ADDED SEPARATE SECTION FOR OTHER TOURIST ATTRACTIONS
+              Container(
+                padding: const EdgeInsets.only(left: 16, top: 24, bottom: 8),
+                color: grayColor,
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.location_on,
+                      color: Color(0xFF5ABB4D),
+                      size: 24,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      "Tempat Wisata Lainnya",
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Other destinations section - SEPARATED FROM POPULAR DESTINATIONS
+              SizedBox(
+                height: 240, // Height for the cards
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  itemCount: _otherDestinations.where((dest) =>
+                    _selectedCategory == 'All' || dest['category'] == _selectedCategory
+                  ).length,
+                  itemBuilder: (context, index) {
+                    final filteredDestinations = _otherDestinations.where((dest) =>
+                      _selectedCategory == 'All' || dest['category'] == _selectedCategory
+                    ).toList();
+                    
+                    if (filteredDestinations.isEmpty) {
+                      return const Center(
+                        child: Text("No destinations in this category"),
+                      );
+                    }
+                    
+                    final destination = filteredDestinations[index];
+                    
+                    return AnimatedOpacity(
+                      duration: const Duration(milliseconds: 300),
+                      opacity: 1.0,
+                      child: Container(
+                        width: 180,
+                        margin: const EdgeInsets.only(right: 16),
+                        child: DestinationCard(
+                          title: destination['title'],
+                          image: destination['image'],
+                          rating: destination['rating'],
+                          location: destination['location'],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+             
+              const SizedBox(height: 16),
             ],
           ),
         ),
@@ -566,19 +794,21 @@ class HomePageState extends State<HomePage>
   }
 }
 
-// Enhanced WisataCard with more appealing design
-class EnhancedWisataCard extends StatelessWidget {
+// Renamed and fixed card implementation
+class DestinationCard extends StatelessWidget {
   final String title;
   final String image;
   final double rating;
-
-  const EnhancedWisataCard({
+  final String location;
+  
+  const DestinationCard({
     super.key,
     required this.title,
     required this.image,
     required this.rating,
+    required this.location,
   });
-
+  
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -597,7 +827,20 @@ class EnhancedWisataCard extends StatelessWidget {
         child: Stack(
           children: [
             // Background image
-            Positioned.fill(child: Image.asset(image, fit: BoxFit.cover)),
+            Positioned.fill(
+              child: Image.asset(
+                image, 
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: Colors.grey.shade300,
+                    child: const Center(
+                      child: Icon(Icons.image_not_supported, size: 50, color: Colors.grey),
+                    ),
+                  );
+                },
+              ),
+            ),
             // Gradient overlay
             Positioned.fill(
               child: Container(
@@ -622,6 +865,7 @@ class EnhancedWisataCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
+                  mainAxisSize: MainAxisSize.min, // Make sure row doesn't take all width
                   children: [
                     const Icon(Icons.star, color: Colors.amber, size: 16),
                     const SizedBox(width: 2),
@@ -660,6 +904,8 @@ class EnhancedWisataCard extends StatelessWidget {
                           ),
                         ],
                       ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 2,
                     ),
                     const SizedBox(height: 4),
                     Row(
@@ -671,11 +917,12 @@ class EnhancedWisataCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          "Batam",
+                          location,
                           style: GoogleFonts.poppins(
                             color: Colors.white.withOpacity(0.9),
                             fontSize: 12,
                           ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
@@ -689,7 +936,6 @@ class EnhancedWisataCard extends StatelessWidget {
     );
   }
 }
-
 class CustomBottomNavBar extends StatelessWidget {
   const CustomBottomNavBar({super.key});
 

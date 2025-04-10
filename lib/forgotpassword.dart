@@ -59,7 +59,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
       });
 
       // Kirim email OTP
-      final success = await EmailService.sendOTP(email, otp);
+      final success = await EmailService.sendOtpEmail(email, otp);
 
       if (success) {
         // Navigasi ke halaman verifikasi

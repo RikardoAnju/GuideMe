@@ -1,46 +1,36 @@
-import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'dart:convert';
 
 class EmailService {
-  static const String apiUrl = "https://api.brevo.com/v3/smtp/email";
-  
-  static Future<bool> sendOTP(String recipientEmail, String otp) async {
-    final String? apiKey = dotenv.env['SENDINBLUE_API_KEY'];
-
-    if (apiKey == null || apiKey.isEmpty) {
-      print("❌ API Key tidak ditemukan!");
-      return false;
-    }
-
-    final Map<String, dynamic> emailData = {
-      "sender": {"name": "Guideme", "email": "anjo24696@gmail.com"},
-      "to": [
-        {"email": recipientEmail}
-      ],
-      "subject": "Kode OTP Anda",
-      "textContent": "Kode OTP Anda adalah: $otp\nJangan bagikan kode ini ke siapa pun!",
-    };
-
+  static const String _serverUrl = 'http://localhost:3000/reset-password'; 
+  static Future<bool> sendOtpEmail(String recipientEmail, String otpCode) async {
     try {
       final response = await http.post(
-        Uri.parse(apiUrl),
+        Uri.parse(_serverUrl),
         headers: {
-          "Content-Type": "application/json",
-          "api-key": apiKey,
+          'Content-Type': 'application/json',
         },
-        body: jsonEncode(emailData),
+        body: jsonEncode({
+          "from": "noreply@test-nrw7gym93o2g2k8e.mlsender.net", 
+          "to": recipientEmail,
+          "subject": "Kode OTP Anda",
+          "html": "<p>Kode OTP Anda adalah: <strong>$otpCode</strong></p>",
+        }),
       );
 
-      if (response.statusCode == 201) {
-        print("✅ OTP berhasil dikirim ke $recipientEmail");
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        print("✅ Email OTP berhasil dikirim ke $recipientEmail");
         return true;
       } else {
-        print("❌ Gagal mengirim OTP: ${response.body}");
+        final errorBody = jsonDecode(response.body);
+        print("❌ Gagal mengirim OTP:");
+        print("Status: ${response.statusCode}");
+        print("Pesan: ${errorBody['message'] ?? 'Tidak diketahui'}");
+        print("Detail: ${errorBody['error'] ?? 'Tidak diketahui'}");
         return false;
       }
     } catch (e) {
-      print("❌ Error: $e");
+      print("❌ Terjadi kesalahan saat mengirim email: $e");
       return false;
     }
   }

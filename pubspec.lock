@@ -50,7 +50,7 @@ packages:
     source: hosted
     version: "2.1.2"
   carousel_slider:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: carousel_slider
       sha256: "7b006ec356205054af5beaef62e2221160ea36b90fb70a35e4deacd49d0349ae"
@@ -74,7 +74,7 @@ packages:
     source: hosted
     version: "1.1.2"
   cloud_firestore:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: cloud_firestore
       sha256: "89a5e32716794b6a8d0ec1b5dfda988194e92daedaa3f3bed66fa0d0a595252e"
@@ -97,6 +97,30 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.4.6"
+  cloud_functions:
+    dependency: "direct main"
+    description:
+      name: cloud_functions
+      sha256: "91c87991b340975b734e17a777c8953a466651d1621b95a9be1220060f33f9ee"
+      url: "https://pub.dev"
+    source: hosted
+    version: "5.4.0"
+  cloud_functions_platform_interface:
+    dependency: transitive
+    description:
+      name: cloud_functions_platform_interface
+      sha256: "816ff83f385356ca750b571c9b3b79f1c4aadfb94629c1bc87fb4d48d7ac1c13"
+      url: "https://pub.dev"
+    source: hosted
+    version: "5.6.5"
+  cloud_functions_web:
+    dependency: transitive
+    description:
+      name: cloud_functions_web
+      sha256: "75b228748b141ebf02ac724dcf4f6dcc0cb493ca10350d8402ffdb2da2f63f5e"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.10.11"
   collection:
     dependency: transitive
     description:
@@ -138,7 +162,7 @@ packages:
     source: hosted
     version: "2.1.4"
   firebase_auth:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: firebase_auth
       sha256: "54c62b2d187709114dd09ce658a8803ee91f9119b0e0d3fc2245130ad9bff9ad"
@@ -217,7 +241,7 @@ packages:
     source: sdk
     version: "0.0.0"
   google_fonts:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: google_fonts
       sha256: b1ac0fe2832c9cc95e5e88b57d627c5e68c223b9657f4b96e1487aa9098c7b82
@@ -233,7 +257,7 @@ packages:
     source: hosted
     version: "0.3.3"
   google_sign_in:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: google_sign_in
       sha256: d0a2c3bcb06e607bb11e4daca48bd4b6120f0bbc4015ccebbe757d24ea60ed2a
@@ -273,7 +297,7 @@ packages:
     source: hosted
     version: "0.12.4+4"
   googleapis:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: googleapis
       sha256: "5c9e0f25be1dec13d8d2158263141104c51b5ba83487537c17a2330581e505ee"
@@ -281,7 +305,7 @@ packages:
     source: hosted
     version: "14.0.0"
   googleapis_auth:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: googleapis_auth
       sha256: b81fe352cc4a330b3710d2b7ad258d9bcef6f909bb759b306bf42973a7d046db
@@ -297,7 +321,7 @@ packages:
     source: hosted
     version: "2.3.2"
   http:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: http
       sha256: fe7ab022b76f3034adc518fb6ea04a82387620e19977665ea18d30a1cf43442f
@@ -353,7 +377,7 @@ packages:
     source: hosted
     version: "5.1.1"
   logger:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: logger
       sha256: be4b23575aac7ebf01f225a241eb7f6b5641eeaf43c6a8613510fc2f8cf187d1
@@ -369,7 +393,7 @@ packages:
     source: hosted
     version: "1.3.0"
   mailer:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: mailer
       sha256: c6ae65c1d40cfe9c06fa50ff9be6c1cfb18cca60a7bb935e318163bd7f1f0d17
@@ -465,7 +489,7 @@ packages:
     source: hosted
     version: "2.3.0"
   pin_code_fields:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: pin_code_fields
       sha256: "4c0db7fbc889e622e7c71ea54b9ee624bb70c7365b532abea0271b17ea75b729"
@@ -489,7 +513,7 @@ packages:
     source: hosted
     version: "2.1.8"
   random_string:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: random_string
       sha256: "03b52435aae8cbdd1056cf91bfc5bf845e9706724dd35ae2e99fa14a1ef79d02"
@@ -573,6 +597,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.0"
+  ulid:
+    dependency: "direct main"
+    description:
+      name: ulid
+      sha256: "6d1f44802679bc3e3cc824045546af2bf26b1d8d0551f45457fedb6c827409ba"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.1"
   vector_math:
     dependency: transitive
     description:

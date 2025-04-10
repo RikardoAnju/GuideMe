@@ -39,4 +39,5 @@ flutter:
 
   assets:
     - assets/images/
-    - assets/.env
+    - mailersend-proxy/.env
+

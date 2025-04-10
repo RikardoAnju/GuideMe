@@ -3,13 +3,13 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:guide_me/Splasscreen.dart';
 
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Load environment variables
-  await dotenv.load(fileName: "assets/.env");
+  await dotenv.load(fileName: "mailersend-proxy/.env");
 
+  // Initialize Firebase
   try {
     await Firebase.initializeApp(
       options: FirebaseOptions(
@@ -31,20 +31,33 @@ Future<void> main() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
- @override
+  @override
   Widget build(BuildContext context) {
     return const MaterialApp(
       debugShowCheckedModeBanner: false,
       home: SplashScreen(),
-    ); 
+    );
   }
 }
 
-// Fungsi untuk menggunakan API Key Brevo dari .env
-String getBrevoApiKey() {
-  final apiKey = dotenv.env['SENDINBLUE_API_KEY'];
+//
+// ========== MailerSend Env Helpers ==========
+//
+
+/// Mengambil API Key MailerSend dari file .env
+String getMailerSendApiKey() {
+  final apiKey = dotenv.env['MAILERSEND_API_KEY'];
   if (apiKey == null || apiKey.isEmpty) {
-    print('❌ API Key Brevo tidak ditemukan di .env');
+    print('❌ MAILERSEND_API_KEY tidak ditemukan di .env');
   }
   return apiKey ?? '';
+}
+
+/// Mengambil sender email MailerSend dari file .env
+String getMailerSendSenderEmail() {
+  final sender = dotenv.env['MAILERSEND_SENDER_EMAIL'];
+  if (sender == null || sender.isEmpty) {
+    print('❌ MAILERSEND_SENDER_EMAIL tidak ditemukan di .env');
+  }
+  return sender ?? '';
 }

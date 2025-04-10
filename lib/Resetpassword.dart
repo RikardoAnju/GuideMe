@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Resetpassword extends StatefulWidget {
   final String email;
   final String userId;
-  final String resetToken; 
-  
+  final String resetToken;
+
   const Resetpassword({
-    super.key, 
-    required this.email, 
+    super.key,
+    required this.email,
     required this.userId,
     required this.resetToken,
   });
@@ -23,7 +24,6 @@ class ResetpasswordState extends State<Resetpassword> {
   final TextEditingController _confirmPasswordController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   bool _isLoading = false;
   bool _isPasswordVisible = false;
@@ -50,7 +50,6 @@ class ResetpasswordState extends State<Resetpassword> {
 
   void _validatePassword() {
     if (!mounted) return;
-
     final password = _passwordController.text;
     setState(() {
       _hasUpperCase = password.contains(RegExp(r'[A-Z]'));
@@ -64,6 +63,66 @@ class ResetpasswordState extends State<Resetpassword> {
     return _hasUpperCase && _hasLowerCase && _hasNumber && _hasMinLength;
   }
 
+  Future<void> _resetPassword() async {
+  if (!_formKey.currentState!.validate()) return;
+
+  if (!_isPasswordValid()) {
+    _showErrorDialog(
+      "Password Tidak Valid",
+      "Password harus memiliki minimal 6 karakter, huruf besar, huruf kecil, dan angka!",
+    );
+    return;
+  }
+
+  if (_passwordController.text != _confirmPasswordController.text) {
+    _showErrorDialog(
+      "Konfirmasi Gagal",
+      "Password dan konfirmasi password tidak cocok!",
+    );
+    return;
+  }
+
+  setState(() => _isLoading = true);
+
+  try {
+    final response = await http.post(
+      Uri.parse('https://resetpass-api.glitch.me/reset-password'), 
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': widget.email,
+        'newPassword': _passwordController.text,
+      }),
+    );
+
+    // Pastikan kita mengubah status loading kembali ke false sebelum melakukan tindakan lain
+    setState(() => _isLoading = false);
+
+    if (response.statusCode == 200) {
+      await _updateUserPasswordStatus(true);
+      _showSuccessDialog();
+    } else {
+      _showErrorDialog("Gagal", "Reset password gagal. Coba lagi.");
+    }
+  } catch (e) {
+    // Pastikan status loading dinonaktifkan saat terjadi error
+    setState(() => _isLoading = false);
+    _showErrorDialog("Error", "Terjadi kesalahan koneksi. Coba lagi nanti.");
+    debugPrint("Reset Password Error: $e");
+  }
+}
+  Future<void> _updateUserPasswordStatus(bool success) async {
+    try {
+      DocumentReference userRef = _firestore.collection('users').doc(widget.userId);
+      await userRef.set({
+        'passwordReset': true,
+        'lastPasswordUpdate': FieldValue.serverTimestamp(),
+        'passwordResetSuccess': success,
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint("Error updating user data: $e");
+    }
+  }
+
   void _showErrorDialog(String title, String message) {
     if (!mounted) return;
     showDialog(
@@ -71,15 +130,10 @@ class ResetpasswordState extends State<Resetpassword> {
       barrierDismissible: false,
       builder: (context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
           title: Text(
             title,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Colors.red,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
           ),
           content: Text(message),
           actions: [
@@ -102,9 +156,7 @@ class ResetpasswordState extends State<Resetpassword> {
         return WillPopScope(
           onWillPop: () async => false,
           child: Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -129,7 +181,6 @@ class ResetpasswordState extends State<Resetpassword> {
                     height: 45,
                     child: ElevatedButton(
                       onPressed: () {
-                        // Arahkan ke halaman login
                         Navigator.of(context).popUntil((route) => route.isFirst);
                       },
                       style: ElevatedButton.styleFrom(
@@ -157,107 +208,15 @@ class ResetpasswordState extends State<Resetpassword> {
     );
   }
 
-  Future<void> _resetPassword() async {
-  if (!_formKey.currentState!.validate()) return;
-
-  if (!_isPasswordValid()) {
-    _showErrorDialog(
-      "Password Tidak Valid",
-      "Password harus memiliki minimal 6 karakter, huruf besar, huruf kecil, dan angka!",
-    );
-    return;
-  }
-
-  if (_passwordController.text != _confirmPasswordController.text) {
-    _showErrorDialog(
-      "Konfirmasi Gagal",
-      "Password dan konfirmasi password tidak cocok!",
-    );
-    return;
-  }
-
-  setState(() => _isLoading = true);
-
-  try {
-    // Pendekatan utama: Reset menggunakan resetToken
-    if (widget.resetToken.isNotEmpty) {
-      await _auth.verifyPasswordResetCode(widget.resetToken);
-
-      await _auth.confirmPasswordReset(
-        code: widget.resetToken,
-        newPassword: _passwordController.text,
-      );
-
-      await _updateUserPasswordStatus(true);
-      setState(() => _isLoading = false);
-      _showSuccessDialog();
-      return;
-    }
-
-    throw FirebaseAuthException(
-      code: 'missing-action-code',
-      message: 'Token reset password tidak tersedia atau tidak valid.',
-    );
-  } on FirebaseAuthException catch (e) {
-    String message;
-    switch (e.code) {
-      case 'expired-action-code':
-        message = "Kode reset password sudah kadaluarsa. Silakan minta ulang.";
-        break;
-      case 'invalid-action-code':
-        message = "Kode reset password tidak valid.";
-        break;
-      case 'user-not-found':
-        message = "Pengguna tidak ditemukan.";
-        break;
-      case 'weak-password':
-        message = "Password terlalu lemah.";
-        break;
-      case 'missing-action-code':
-        message = "Token tidak ditemukan atau kosong.";
-        break;
-      default:
-        message = "Terjadi kesalahan: ${e.message}";
-    }
-
-    setState(() => _isLoading = false);
-    _showErrorDialog("Error", message);
-  } catch (e) {
-    setState(() => _isLoading = false);
-    _showErrorDialog("Error", "Terjadi kesalahan saat mengubah password. Coba lagi.");
-    debugPrint("Non-Firebase error: $e");
-  }
-}
-
-  Future<void> _updateUserPasswordStatus(bool success) async {
-    try {
-      // Perbarui status password di Firestore
-      DocumentReference userRef = _firestore.collection('users').doc(widget.userId);
-      
-      // Update status password
-      await userRef.set({
-        'passwordReset': true,
-        'lastPasswordUpdate': FieldValue.serverTimestamp(),
-        'passwordResetSuccess': success,
-      }, SetOptions(merge: true));
-      
-    } catch (e) {
-      debugPrint("Error updating user data: $e");
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    // UI code remains the same
     return WillPopScope(
-      onWillPop: () async {
-        return false; 
-      },
+      onWillPop: () async => false,
       child: Scaffold(
         appBar: AppBar(
           backgroundColor: Colors.green,
           elevation: 0,
-          automaticallyImplyLeading: false, 
+          automaticallyImplyLeading: false,
         ),
         body: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
@@ -312,12 +271,9 @@ class ResetpasswordState extends State<Resetpassword> {
                             TextFormField(
                               controller: _passwordController,
                               obscureText: !_isPasswordVisible,
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return "Password tidak boleh kosong";
-                                }
-                                return null;
-                              },
+                              validator: (value) => (value == null || value.isEmpty)
+                                  ? "Password tidak boleh kosong"
+                                  : null,
                               decoration: InputDecoration(
                                 labelText: "Password Baru",
                                 prefixIcon: const Icon(Icons.lock),
@@ -333,9 +289,7 @@ class ResetpasswordState extends State<Resetpassword> {
                                 ),
                                 suffixIcon: IconButton(
                                   icon: Icon(
-                                    _isPasswordVisible
-                                        ? Icons.visibility
-                                        : Icons.visibility_off,
+                                    _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
                                     color: Colors.grey,
                                   ),
                                   onPressed: () {
@@ -348,7 +302,6 @@ class ResetpasswordState extends State<Resetpassword> {
                               ),
                             ),
                             const SizedBox(height: 12),
-                            // Password strength indicators
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
@@ -361,28 +314,13 @@ class ResetpasswordState extends State<Resetpassword> {
                                 children: [
                                   const Text(
                                     "Password harus memenuhi kriteria berikut:",
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                                   ),
                                   const SizedBox(height: 8),
-                                  _buildRequirementRow(
-                                    _hasMinLength,
-                                    "Minimal 6 karakter",
-                                  ),
-                                  _buildRequirementRow(
-                                    _hasUpperCase,
-                                    "Minimal satu huruf besar (A-Z)",
-                                  ),
-                                  _buildRequirementRow(
-                                    _hasLowerCase,
-                                    "Minimal satu huruf kecil (a-z)",
-                                  ),
-                                  _buildRequirementRow(
-                                    _hasNumber,
-                                    "Minimal satu angka (0-9)",
-                                  ),
+                                  _buildRequirementRow(_hasMinLength, "Minimal 6 karakter"),
+                                  _buildRequirementRow(_hasUpperCase, "Minimal satu huruf besar (A-Z)"),
+                                  _buildRequirementRow(_hasLowerCase, "Minimal satu huruf kecil (a-z)"),
+                                  _buildRequirementRow(_hasNumber, "Minimal satu angka (0-9)"),
                                 ],
                               ),
                             ),
@@ -407,23 +345,17 @@ class ResetpasswordState extends State<Resetpassword> {
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(
-                                    color: Colors.green,
-                                    width: 2,
-                                  ),
+                                  borderSide: const BorderSide(color: Colors.green, width: 2),
                                 ),
                                 suffixIcon: IconButton(
                                   icon: Icon(
-                                    _isConfirmPasswordVisible
-                                        ? Icons.visibility
-                                        : Icons.visibility_off,
+                                    _isConfirmPasswordVisible ? Icons.visibility : Icons.visibility_off,
                                     color: Colors.grey,
                                   ),
                                   onPressed: () {
                                     if (!mounted) return;
                                     setState(() {
-                                      _isConfirmPasswordVisible =
-                                          !_isConfirmPasswordVisible;
+                                      _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
                                     });
                                   },
                                 ),
