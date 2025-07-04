@@ -86,7 +86,7 @@ class ResetpasswordState extends State<Resetpassword> {
 
   try {
     final response = await http.post(
-      Uri.parse('https://resetpass-api.glitch.me/reset-password'), 
+      Uri.parse('https://guide-me.glitch.me/reset'), 
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'email': widget.email,
@@ -162,7 +162,7 @@ class ResetpasswordState extends State<Resetpassword> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.check_circle, color: Colors.green, size: 80),
+                  const Icon(Icons.check_circle, color:  Color(0xFF5ABB4D), size: 80),
                   const SizedBox(height: 10),
                   const Text(
                     "Password berhasil diubah",
@@ -184,7 +184,7 @@ class ResetpasswordState extends State<Resetpassword> {
                         Navigator.of(context).popUntil((route) => route.isFirst);
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
+                        backgroundColor: const Color(0xFF5ABB4D),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
@@ -214,7 +214,7 @@ class ResetpasswordState extends State<Resetpassword> {
       onWillPop: () async => false,
       child: Scaffold(
         appBar: AppBar(
-          backgroundColor: Colors.green,
+          backgroundColor: const Color(0xFF5ABB4D),
           elevation: 0,
           automaticallyImplyLeading: false,
         ),
@@ -226,7 +226,7 @@ class ResetpasswordState extends State<Resetpassword> {
                 width: double.infinity,
                 height: 200,
                 decoration: const BoxDecoration(
-                  color: Colors.green,
+                  color:  Color(0xFF5ABB4D),
                   borderRadius: BorderRadius.only(
                     bottomLeft: Radius.circular(40),
                     bottomRight: Radius.circular(40),
@@ -283,7 +283,7 @@ class ResetpasswordState extends State<Resetpassword> {
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(10),
                                   borderSide: const BorderSide(
-                                    color: Colors.green,
+                                    color:  Color(0xFF5ABB4D),
                                     width: 2,
                                   ),
                                 ),
@@ -345,7 +345,7 @@ class ResetpasswordState extends State<Resetpassword> {
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(color: Colors.green, width: 2),
+                                  borderSide: const BorderSide(color: Color(0xFF5ABB4D), width: 2),
                                 ),
                                 suffixIcon: IconButton(
                                   icon: Icon(
@@ -368,8 +368,8 @@ class ResetpasswordState extends State<Resetpassword> {
                               child: ElevatedButton(
                                 onPressed: _isLoading ? null : _resetPassword,
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green,
-                                  disabledBackgroundColor: Colors.green.withOpacity(0.5),
+                                  backgroundColor: const Color(0xFF5ABB4D),
+                                  disabledBackgroundColor: const Color(0xFF5ABB4D).withOpacity(0.5),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(10),
                                   ),
@@ -417,7 +417,7 @@ class ResetpasswordState extends State<Resetpassword> {
         children: [
           Icon(
             isMet ? Icons.check_circle : Icons.cancel,
-            color: isMet ? Colors.green : Colors.grey,
+            color: isMet ? const Color(0xFF5ABB4D) : Colors.grey,
             size: 16,
           ),
           const SizedBox(width: 8),
@@ -425,7 +425,7 @@ class ResetpasswordState extends State<Resetpassword> {
             text,
             style: TextStyle(
               fontSize: 12,
-              color: isMet ? Colors.green : Colors.grey,
+              color: isMet ? const Color(0xFF5ABB4D) : Colors.grey,
             ),
           ),
         ],

@@ -121,7 +121,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
               width: double.infinity,
               height: 250,
               decoration: const BoxDecoration(
-                color: Colors.green,
+                color:  Color(0xFF5ABB4D),
                 borderRadius: BorderRadius.only(
                   bottomLeft: Radius.circular(40),
                   bottomRight: Radius.circular(40),
@@ -183,7 +183,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
                           child: ElevatedButton(
                             onPressed: _isLoading ? null : _sendOtpEmail,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green,
+                              backgroundColor: const Color(0xFF5ABB4D),
                               padding: const EdgeInsets.symmetric(vertical: 15),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),

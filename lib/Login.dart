@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:guide_me/Register.dart';
-
-import 'package:guide_me/adminpage.dart';
+import 'admin/adminpage.dart';
 import 'package:guide_me/forgotpassword.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:guide_me/user/home.dart';
 
-import 'Home.dart';
 
 void main() {
   runApp(MaterialApp(debugShowCheckedModeBanner: false, home: LoginScreen()));
@@ -43,6 +43,18 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } else {
       print("Email belum diverifikasi atau user null!");
+    }
+  }
+
+  // New method to save user role to SharedPreferences
+  Future<void> _saveUserRole(String role) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isLoggedIn', true);
+      await prefs.setString('userRole', role);
+      print("User role saved to SharedPreferences: $role");
+    } catch (e) {
+      print("Error saving user role to SharedPreferences: $e");
     }
   }
 
@@ -107,25 +119,48 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _redirectUser(User user) async {
-    DocumentSnapshot userDoc =
-        await _firestore.collection('users').doc(user.uid).get();
+    try {
+      DocumentSnapshot userDoc =
+          await _firestore.collection('users').doc(user.uid).get();
 
-    if (userDoc.exists) {
-      String role = userDoc['role'];
+      if (userDoc.exists) {
+        String role = userDoc['role'];
+        
+        // Save user role to SharedPreferences before navigation
+        await _saveUserRole(role);
+        
+        print("User logged in with role: $role");
 
-      if (role == 'admin') {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const AdminPage()),
-        );
+        if (role == 'admin') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const AdminPage()),
+          );
+        } else if (role == 'owner') {
+          // Add specific handling for owner role
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const HomePage()),
+          );
+        } else {
+          // Default for 'user' role
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const HomePage()),
+          );
+        }
       } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
-        );
+        _showError('User data tidak ditemukan!');
+        setState(() {
+          _isLoading = false;
+        });
       }
-    } else {
-      _showError('User data tidak ditemukan!');
+    } catch (e) {
+      print("Error in _redirectUser: $e");
+      _showError('Terjadi kesalahan saat mengambil data pengguna!');
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -157,7 +192,7 @@ class _LoginScreenState extends State<LoginScreen> {
             width: double.infinity,
             height: 300,
             decoration: const BoxDecoration(
-              color: Colors.green,
+              color:  Color(0xFF5ABB4D),
               borderRadius: BorderRadius.only(
                 bottomLeft: Radius.circular(40),
                 bottomRight: Radius.circular(40),
@@ -165,16 +200,6 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
 
-          Positioned(
-            top: 10,
-            left: 20,
-            child: IconButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              icon: const Icon(Icons.arrow_back, color: Colors.white, size: 30),
-            ),
-          ),
           Positioned(
             top: 10,
             left: 20,
@@ -277,7 +302,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           context,
                           MaterialPageRoute(builder: (context) => ForgotPassword())
                         );
-
                       },
                       child: const Text(
                         "Forgot password?",
@@ -293,7 +317,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: ElevatedButton(
                       onPressed: _isLoading ? null : _login,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
+                        backgroundColor: const Color(0xFF5ABB4D),
                         padding: const EdgeInsets.symmetric(vertical: 15),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),

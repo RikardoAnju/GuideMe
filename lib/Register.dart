@@ -27,7 +27,10 @@ class CountryCodePickerState extends State<CountryCodePicker> {
 
   Future<void> fetchCountryCodes() async {
     try {
-      final url = Uri.parse("https://restcountries.com/v3.1/all");
+      final url = Uri.parse(
+        "https://restcountries.com/v3.1/all?fields=name,idd",
+      );
+
       final response = await http.get(url);
 
       if (response.statusCode == 200) {
@@ -151,147 +154,159 @@ class RegisterState extends State<Register> {
   }
 
   Future<void> _registerUser() async {
-  List<String> errors = [];
+    List<String> errors = [];
 
-  if (_firstNameController.text.isEmpty) errors.add('First Name harus diisi');
-  if (_lastNameController.text.isEmpty) errors.add('Last Name harus diisi');
-  if (_emailController.text.isEmpty) errors.add('Email harus diisi');
-  if (_usernameController.text.isEmpty) errors.add('Username harus diisi');
-  if (_phoneNumberController.text.isEmpty) errors.add('Nomor telepon harus diisi');
-  if (_passwordController.text.isEmpty) errors.add('Password harus diisi');
-  if (_confirmPasswordController.text.isEmpty) errors.add('Konfirmasi password harus diisi');
-  if (_selectedCode == null) errors.add('Kode negara harus dipilih');
-  if (_addressController.text.isEmpty) errors.add('Alamat harus diisi');
-  if (selectedGender == null) errors.add('Jenis kelamin harus dipilih');
+    if (_firstNameController.text.isEmpty) errors.add('First Name harus diisi');
+    if (_lastNameController.text.isEmpty) errors.add('Last Name harus diisi');
+    if (_emailController.text.isEmpty) errors.add('Email harus diisi');
+    if (_usernameController.text.isEmpty) errors.add('Username harus diisi');
+    if (_phoneNumberController.text.isEmpty)
+      errors.add('Nomor telepon harus diisi');
+    if (_passwordController.text.isEmpty) errors.add('Password harus diisi');
+    if (_confirmPasswordController.text.isEmpty)
+      errors.add('Konfirmasi password harus diisi');
+    if (_selectedCode == null) errors.add('Kode negara harus dipilih');
+    if (_addressController.text.isEmpty) errors.add('Alamat harus diisi');
+    if (selectedGender == null) errors.add('Jenis kelamin harus dipilih');
 
-  if (errors.isNotEmpty) {
-    _showErrorDialog(errors);
-    return;
-  }
-
-  if (!isValidPassword(_passwordController.text)) {
-    _showErrorDialog([
-      'Password minimal 8 karakter, mengandung huruf besar, huruf kecil, dan angka',
-    ]);
-    return;
-  }
-
-  if (_passwordController.text != _confirmPasswordController.text) {
-    _showErrorDialog(['Password tidak cocok']);
-    return;
-  }
-
-  setState(() {
-    _isLoading = true;
-  });
-
-  try {
-    var emailCheck = await _firestore
-        .collection('users')
-        .where('email', isEqualTo: _emailController.text.trim())
-        .get();
-
-    if (emailCheck.docs.isNotEmpty) {
-      _showWarningDialog('Email sudah terdaftar, silakan gunakan email lain.');
-      setState(() => _isLoading = false);
+    if (errors.isNotEmpty) {
+      _showErrorDialog(errors);
       return;
     }
 
-    var usernameCheck = await _firestore
-        .collection('users')
-        .where('username', isEqualTo: _usernameController.text.trim())
-        .get();
-
-    if (usernameCheck.docs.isNotEmpty) {
-      _showWarningDialog('Username telah digunakan, silakan pilih username lain');
-      setState(() => _isLoading = false);
+    if (!isValidPassword(_passwordController.text)) {
+      _showErrorDialog([
+        'Password minimal 8 karakter, mengandung huruf besar, huruf kecil, dan angka',
+      ]);
       return;
     }
 
-    UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
-      email: _emailController.text.trim(),
-      password: _passwordController.text.trim(),
-    );
-
-    await userCredential.user!.sendEmailVerification();
-
-    await _firestore.collection('users').doc(userCredential.user!.uid).set({
-      'id': userCredential.user!.uid,
-      'firstName': _firstNameController.text.trim(),
-      'lastName': _lastNameController.text.trim(),
-      'username': _usernameController.text.trim(),
-      'email': _emailController.text.trim(),
-      'phoneNumber': "$_selectedCode${_phoneNumberController.text.trim()}",
-      'gender': selectedGender,
-      'address': _addressController.text.trim(),
-      'createdAt': FieldValue.serverTimestamp(),
-      'role': 'user',
-      'emailVerified': false,
-    });
-
-    _showSuccessDialog("Email verifikasi telah dikirim. Silakan cek email Anda.");
-
-    _showSuccessDialog("Email verifikasi telah dikirim. Silakan cek email Anda.");
-
-// Reset form setelah sukses
-_firstNameController.clear();
-_lastNameController.clear();
-_emailController.clear();
-_usernameController.clear();
-_phoneNumberController.clear();
-_passwordController.clear();
-_confirmPasswordController.clear();
-_addressController.clear();
-setState(() {
-  selectedGender = null;
-  _selectedCode = null;
-});
-
-  } on FirebaseAuthException catch (e) {
-    String errorMessage = 'Registrasi gagal';
-    if (e.code == 'weak-password') {
-      errorMessage = 'Password terlalu lemah';
-    } else if (e.code == 'email-already-in-use') {
-      errorMessage = 'Email sudah terdaftar';
+    if (_passwordController.text != _confirmPasswordController.text) {
+      _showErrorDialog(['Password tidak cocok']);
+      return;
     }
-    _showErrorDialog([errorMessage]);
-  } catch (e) {
-    _showErrorDialog(['Registrasi gagal: ${e.toString()}']);
-  } finally {
+
     setState(() {
-      _isLoading = false;
+      _isLoading = true;
     });
-  }
-}
 
-void _showSuccessDialog(String message) {
-  showDialog(
-    context: context,
-    barrierDismissible: false, // Modal tidak bisa ditutup dengan klik di luar
-    builder: (context) {
-      return AlertDialog(
-        title: const Text(
-          'Sukses!',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
-        ),
-        content: Text(message, textAlign: TextAlign.center),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop(); 
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
-              ); 
-            },
-            child: const Text('OK'),
-          ),
-        ],
+    try {
+      var emailCheck =
+          await _firestore
+              .collection('users')
+              .where('email', isEqualTo: _emailController.text.trim())
+              .get();
+
+      if (emailCheck.docs.isNotEmpty) {
+        _showWarningDialog(
+          'Email sudah terdaftar, silakan gunakan email lain.',
+        );
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      var usernameCheck =
+          await _firestore
+              .collection('users')
+              .where('username', isEqualTo: _usernameController.text.trim())
+              .get();
+
+      if (usernameCheck.docs.isNotEmpty) {
+        _showWarningDialog(
+          'Username telah digunakan, silakan pilih username lain',
+        );
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      UserCredential userCredential = await _auth
+          .createUserWithEmailAndPassword(
+            email: _emailController.text.trim(),
+            password: _passwordController.text.trim(),
+          );
+
+      await userCredential.user!.sendEmailVerification();
+
+      await _firestore.collection('users').doc(userCredential.user!.uid).set({
+        'id': userCredential.user!.uid,
+        'firstName': _firstNameController.text.trim(),
+        'lastName': _lastNameController.text.trim(),
+        'username': _usernameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'phoneNumber': "$_selectedCode${_phoneNumberController.text.trim()}",
+        'gender': selectedGender,
+        'address': _addressController.text.trim(),
+        'createdAt': FieldValue.serverTimestamp(),
+        'role': 'user',
+        'emailVerified': false,
+      });
+
+      _showSuccessDialog(
+        "Email verifikasi telah dikirim. Silakan cek email Anda.",
       );
-    },
-  );
-}
+
+      _showSuccessDialog(
+        "Email verifikasi telah dikirim. Silakan cek email Anda.",
+      );
+
+      // Reset form setelah sukses
+      _firstNameController.clear();
+      _lastNameController.clear();
+      _emailController.clear();
+      _usernameController.clear();
+      _phoneNumberController.clear();
+      _passwordController.clear();
+      _confirmPasswordController.clear();
+      _addressController.clear();
+      setState(() {
+        selectedGender = null;
+        _selectedCode = null;
+      });
+    } on FirebaseAuthException catch (e) {
+      String errorMessage = 'Registrasi gagal';
+      if (e.code == 'weak-password') {
+        errorMessage = 'Password terlalu lemah';
+      } else if (e.code == 'email-already-in-use') {
+        errorMessage = 'Email sudah terdaftar';
+      }
+      _showErrorDialog([errorMessage]);
+    } catch (e) {
+      _showErrorDialog(['Registrasi gagal: ${e.toString()}']);
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _showSuccessDialog(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Modal tidak bisa ditutup dengan klik di luar
+      builder: (context) {
+        return AlertDialog(
+          title: const Text(
+            'Sukses!',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+          ),
+          content: Text(message, textAlign: TextAlign.center),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginScreen()),
+                );
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   void _showErrorDialog(List<String> messages) {
     showDialog(
@@ -494,8 +509,7 @@ void _showSuccessDialog(String message) {
                         ),
                         const SizedBox(height: 15),
                         DropdownButtonFormField<String>(
-                          value:
-                              selectedGender,
+                          value: selectedGender,
                           decoration: const InputDecoration(
                             labelText: "Gender",
                             prefixIcon: Icon(Icons.wc),

@@ -78,7 +78,7 @@ class _VerifikasiOtpState extends State<VerifikasiOtp> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: isError ? Colors.red : Colors.green,
+        backgroundColor: isError ? Colors.red : const Color(0xFF5ABB4D),
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(20),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -222,7 +222,7 @@ class _VerifikasiOtpState extends State<VerifikasiOtp> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDarkMode = theme.brightness == Brightness.dark;
-    final primaryColor = Colors.green;
+    final primaryColor = const Color(0xFF5ABB4D);
 
     return Scaffold(
       body: SafeArea(
