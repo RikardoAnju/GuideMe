@@ -9,27 +9,41 @@ let firebaseEnabled = false;
 function initFirebase() {
   if (!admin.apps.length) {
     try {
-      if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY) {
-        admin.initializeApp({
-          credential: admin.credential.cert({
-            type: "service_account",
-            project_id: process.env.FIREBASE_PROJECT_ID,
-            private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-            private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-            client_email: process.env.FIREBASE_CLIENT_EMAIL,
-            client_id: process.env.FIREBASE_CLIENT_ID,
-            auth_uri: "https://accounts.google.com/o/oauth2/auth",
-            token_uri: "https://oauth2.googleapis.com/token",
-            auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
-            client_x509_cert_url: `https://www.googleapis.com/robot/v1/metadata/x509/${process.env.FIREBASE_CLIENT_EMAIL}`,
-          }),
-        });
-        db = admin.firestore();
-        firebaseEnabled = true;
-        console.log("✅ Firebase initialized");
+      // Check if all required Firebase environment variables are present
+      const requiredEnvVars = [
+        'FIREBASE_PROJECT_ID',
+        'FIREBASE_PRIVATE_KEY',
+        'FIREBASE_CLIENT_EMAIL'
+      ];
+      
+      const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+      
+      if (missingVars.length > 0) {
+        console.warn(`⚠️ Missing Firebase environment variables: ${missingVars.join(', ')}`);
+        return;
       }
+
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          type: "service_account",
+          project_id: process.env.FIREBASE_PROJECT_ID,
+          private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
+          private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+          client_email: process.env.FIREBASE_CLIENT_EMAIL,
+          client_id: process.env.FIREBASE_CLIENT_ID,
+          auth_uri: "https://accounts.google.com/o/oauth2/auth",
+          token_uri: "https://oauth2.googleapis.com/token",
+          auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+          client_x509_cert_url: `https://www.googleapis.com/robot/v1/metadata/x509/${process.env.FIREBASE_CLIENT_EMAIL}`,
+        }),
+      });
+      
+      db = admin.firestore();
+      firebaseEnabled = true;
+      console.log("✅ Firebase initialized successfully");
     } catch (error) {
-      console.warn("⚠️ Firebase not configured:", error.message);
+      console.warn("⚠️ Firebase initialization failed:", error.message);
+      firebaseEnabled = false;
     }
   } else {
     db = admin.firestore();
@@ -52,19 +66,29 @@ function mapTransactionStatus(midtransStatus) {
   return statusMapping[midtransStatus] || statusMapping['default'];
 }
 
-// Check Midtrans status
+// Check Midtrans status with better error handling
 async function checkMidtransStatus(orderId) {
   try {
     const serverKey = process.env.MIDTRANS_SERVER_KEY;
+    if (!serverKey) {
+      throw new Error("MIDTRANS_SERVER_KEY environment variable is not set");
+    }
+
     const encodedKey = Buffer.from(serverKey + ":").toString("base64");
     
+    // Use production URL if not in sandbox mode
+    const baseUrl = process.env.MIDTRANS_IS_PRODUCTION === 'true' 
+      ? 'https://api.midtrans.com' 
+      : 'https://api.sandbox.midtrans.com';
+    
     const response = await axios.get(
-      `https://api.sandbox.midtrans.com/v2/${orderId}/status`,
+      `${baseUrl}/v2/${orderId}/status`,
       {
         headers: {
           Authorization: `Basic ${encodedKey}`,
           "Content-Type": "application/json",
         },
+        timeout: 10000, // 10 second timeout
       }
     );
     
@@ -77,30 +101,53 @@ async function checkMidtransStatus(orderId) {
 
 // CORS headers
 function setCorsHeaders(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const allowedOrigins = process.env.ALLOWED_ORIGINS 
+    ? process.env.ALLOWED_ORIGINS.split(',') 
+    : ['*'];
+  
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigins[0]);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Max-Age', '86400');
+}
+
+// Validate required environment variables
+function validateEnvironment() {
+  const requiredVars = ['MIDTRANS_SERVER_KEY'];
+  const missingVars = requiredVars.filter(varName => !process.env[varName]);
+  
+  if (missingVars.length > 0) {
+    throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+  }
 }
 
 // Main handler
 export default async function handler(req, res) {
-  setCorsHeaders(res);
-  
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  initFirebase();
-
-  const { method, url } = req;
-  const path = url.split('?')[0];
-
   try {
+    setCorsHeaders(res);
+    
+    if (req.method === 'OPTIONS') {
+      return res.status(200).end();
+    }
+
+    // Validate environment variables
+    validateEnvironment();
+    
+    // Initialize Firebase
+    initFirebase();
+
+    const { method, url } = req;
+    const path = url.split('?')[0];
+
+    console.log(`📝 ${method} ${path} - ${new Date().toISOString()}`);
+
     // Root endpoint
     if (method === 'GET' && path === '/') {
       return res.json({
         message: "Payment Backend Server - Vercel Version",
+        version: "1.0.0",
         firebase_enabled: firebaseEnabled,
+        environment: process.env.NODE_ENV || 'development',
         endpoints: [
           "POST /reset - Send OTP email",
           "POST /generate-snap-token - Create payment",
@@ -118,6 +165,7 @@ export default async function handler(req, res) {
         status: "OK",
         firebase_enabled: firebaseEnabled,
         timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
       });
     }
 
@@ -126,7 +174,17 @@ export default async function handler(req, res) {
       const { from, to, subject, html } = req.body;
 
       if (!from || !to || !subject || !html) {
-        return res.status(400).json({ message: "Missing required fields" });
+        return res.status(400).json({ 
+          success: false,
+          message: "Missing required fields: from, to, subject, html" 
+        });
+      }
+
+      if (!process.env.MAILERSEND_API_KEY) {
+        return res.status(500).json({ 
+          success: false,
+          message: "Email service not configured" 
+        });
       }
 
       try {
@@ -143,13 +201,21 @@ export default async function handler(req, res) {
               "Content-Type": "application/json",
               Authorization: `Bearer ${process.env.MAILERSEND_API_KEY}`,
             },
+            timeout: 15000,
           }
         );
 
-        return res.json({ message: "Email sent successfully" });
+        return res.json({ 
+          success: true,
+          message: "Email sent successfully" 
+        });
       } catch (error) {
         console.error("Email error:", error.response?.data || error.message);
-        return res.status(500).json({ message: "Failed to send email" });
+        return res.status(500).json({ 
+          success: false,
+          message: "Failed to send email",
+          error: error.response?.data?.message || error.message
+        });
       }
     }
 
@@ -158,14 +224,28 @@ export default async function handler(req, res) {
       const { order_id, gross_amount, customer_details, item_details, payment_type } = req.body;
 
       if (!order_id || !gross_amount || !customer_details || !item_details) {
-        return res.status(400).json({ message: "Missing required fields" });
+        return res.status(400).json({ 
+          success: false,
+          message: "Missing required fields: order_id, gross_amount, customer_details, item_details" 
+        });
+      }
+
+      // Validate order_id format
+      if (!/^[a-zA-Z0-9_-]+$/.test(order_id)) {
+        return res.status(400).json({ 
+          success: false,
+          message: "Invalid order_id format. Only alphanumeric characters, hyphens, and underscores are allowed." 
+        });
       }
 
       const serverKey = process.env.MIDTRANS_SERVER_KEY;
       const encodedKey = Buffer.from(serverKey + ":").toString("base64");
 
       const transactionData = {
-        transaction_details: { order_id, gross_amount },
+        transaction_details: { 
+          order_id, 
+          gross_amount: parseInt(gross_amount) 
+        },
         customer_details: {
           first_name: customer_details.first_name || "Customer",
           email: customer_details.email || "",
@@ -173,114 +253,108 @@ export default async function handler(req, res) {
         },
         item_details: item_details.map(item => ({
           id: item.id,
-          price: item.price,
-          quantity: item.quantity,
+          price: parseInt(item.price),
+          quantity: parseInt(item.quantity),
           name: item.name,
         })),
         credit_card: { secure: true },
+        callbacks: {
+          finish: `${process.env.FRONTEND_URL || 'https://yourapp.com'}/payment-finish?order_id=${order_id}`,
+        }
       };
 
       try {
+        const baseUrl = process.env.MIDTRANS_IS_PRODUCTION === 'true' 
+          ? 'https://app.midtrans.com' 
+          : 'https://app.sandbox.midtrans.com';
+
         const response = await axios.post(
-          "https://app.sandbox.midtrans.com/snap/v1/transactions",
+          `${baseUrl}/snap/v1/transactions`,
           transactionData,
           {
             headers: {
               "Content-Type": "application/json",
               Authorization: `Basic ${encodedKey}`,
             },
+            timeout: 15000,
           }
         );
 
         // Save to Firebase with enhanced data structure
         if (firebaseEnabled) {
-          const paymentData = {
-            order_id,
-            status: "pending",
-            is_paid: false,
-            gross_amount,
-            customer_details,
-            item_details,
-            snap_token: response.data.token,
-            transaction_status: "pending",
-            created_at: admin.firestore.FieldValue.serverTimestamp(),
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            timestamp: admin.firestore.FieldValue.serverTimestamp(),
-            // Handle both event and destination payments
-            ...(payment_type === 'event' && {
-              userId: customer_details.userId,
-              eventId: customer_details.eventId,
-              eventName: customer_details.eventName,
-              eventData: customer_details.eventData,
-              userEmail: customer_details.email,
-              userName: customer_details.first_name,
-              quantity: item_details[0]?.quantity || 1,
-              totalAmount: gross_amount,
-              isFree: gross_amount === 0
-            }),
-            ...(payment_type === 'destination' && {
-              userId: customer_details.userId,
-              destinasiId: customer_details.destinasiId,
-              destinasiName: customer_details.destinasiName,
-              destinasiData: customer_details.destinasiData,
-              userEmail: customer_details.email,
-              userName: customer_details.first_name,
-              quantity: item_details[0]?.quantity || 1,
-              totalAmount: gross_amount,
-              isFree: gross_amount === 0
-            })
-          };
+          try {
+            const paymentData = {
+              order_id,
+              status: "pending",
+              is_paid: false,
+              gross_amount: parseInt(gross_amount),
+              customer_details,
+              item_details,
+              payment_type: payment_type || 'general',
+              snap_token: response.data.token,
+              transaction_status: "pending",
+              created_at: admin.firestore.FieldValue.serverTimestamp(),
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              timestamp: admin.firestore.FieldValue.serverTimestamp(),
+              // Handle both event and destination payments
+              ...(payment_type === 'event' && {
+                userId: customer_details.userId,
+                eventId: customer_details.eventId,
+                eventName: customer_details.eventName,
+                eventData: customer_details.eventData,
+                userEmail: customer_details.email,
+                userName: customer_details.first_name,
+                quantity: item_details[0]?.quantity || 1,
+                totalAmount: parseInt(gross_amount),
+                isFree: parseInt(gross_amount) === 0
+              }),
+              ...(payment_type === 'destination' && {
+                userId: customer_details.userId,
+                destinasiId: customer_details.destinasiId,
+                destinasiName: customer_details.destinasiName,
+                destinasiData: customer_details.destinasiData,
+                userEmail: customer_details.email,
+                userName: customer_details.first_name,
+                quantity: item_details[0]?.quantity || 1,
+                totalAmount: parseInt(gross_amount),
+                isFree: parseInt(gross_amount) === 0
+              })
+            };
 
-          await db.collection("payments").add(paymentData);
-          console.log(`💾 Payment record created for ${order_id} with status: pending`);
-          
-          // Log payment details for debugging
-          if (payment_type === 'event') {
-            console.log(`Saving event payment to Firestore: ${JSON.stringify({
-              orderId: order_id,
-              userId: customer_details.userId,
-              eventId: customer_details.eventId,
-              eventName: customer_details.eventName,
-              quantity: item_details[0]?.quantity || 1,
-              totalAmount: gross_amount,
-              status: 'pending',
-              isFree: gross_amount === 0,
-              userEmail: customer_details.email,
-              userName: customer_details.first_name,
-              eventData: customer_details.eventData
-            })}`);
-          } else if (payment_type === 'destination') {
-            console.log(`Saving destination payment to Firestore: ${JSON.stringify({
-              orderId: order_id,
-              userId: customer_details.userId,
-              destinasiId: customer_details.destinasiId,
-              destinasiName: customer_details.destinasiName,
-              quantity: item_details[0]?.quantity || 1,
-              totalAmount: gross_amount,
-              status: 'pending',
-              isFree: gross_amount === 0,
-              userEmail: customer_details.email,
-              userName: customer_details.first_name,
-              destinasiData: customer_details.destinasiData
-            })}`);
+            await db.collection("payments").add(paymentData);
+            console.log(`💾 Payment record created for ${order_id} with status: pending`);
+          } catch (firebaseError) {
+            console.error("Firebase save error:", firebaseError.message);
+            // Continue even if Firebase fails
           }
-          
-          console.log("Payment saved successfully with status: pending");
         }
 
         return res.json({
           success: true,
           snap_token: response.data.token,
+          redirect_url: response.data.redirect_url,
+          order_id
         });
       } catch (error) {
         console.error("Payment token error:", error.response?.data || error.message);
-        return res.status(500).json({ message: "Failed to generate payment token" });
+        return res.status(500).json({ 
+          success: false,
+          message: "Failed to generate payment token",
+          error: error.response?.data?.error_messages || error.message
+        });
       }
     }
 
     // Midtrans webhook
     if (method === 'POST' && path === '/midtrans-webhook') {
       const { order_id, status_code, gross_amount, signature_key, transaction_status } = req.body;
+
+      if (!order_id || !status_code || !gross_amount || !signature_key) {
+        return res.status(400).json({ 
+          success: false,
+          message: "Missing required webhook fields" 
+        });
+      }
 
       // Verify signature
       const serverKey = process.env.MIDTRANS_SERVER_KEY;
@@ -291,7 +365,10 @@ export default async function handler(req, res) {
 
       if (signature_key !== expectedSignature) {
         console.error(`❌ Invalid signature for order ${order_id}`);
-        return res.status(400).json({ message: "Invalid signature" });
+        return res.status(401).json({ 
+          success: false,
+          message: "Invalid signature" 
+        });
       }
 
       const statusInfo = mapTransactionStatus(transaction_status);
@@ -299,22 +376,31 @@ export default async function handler(req, res) {
 
       // Update Firebase
       if (firebaseEnabled) {
-        const paymentsRef = db.collection("payments");
-        const snapshot = await paymentsRef.where("order_id", "==", order_id).get();
-        
-        if (!snapshot.empty) {
-          const doc = snapshot.docs[0];
-          await doc.ref.update({
-            status: statusInfo.status,
-            is_paid: statusInfo.isPaid,
-            transaction_status,
-            updated_at: admin.firestore.FieldValue.serverTimestamp(),
-          });
-          console.log(`💾 Webhook updated ${order_id}: ${statusInfo.status}, isPaid: ${statusInfo.isPaid}`);
+        try {
+          const paymentsRef = db.collection("payments");
+          const snapshot = await paymentsRef.where("order_id", "==", order_id).get();
+          
+          if (!snapshot.empty) {
+            const doc = snapshot.docs[0];
+            await doc.ref.update({
+              status: statusInfo.status,
+              is_paid: statusInfo.isPaid,
+              transaction_status,
+              updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            console.log(`💾 Webhook updated ${order_id}: ${statusInfo.status}, isPaid: ${statusInfo.isPaid}`);
+          }
+        } catch (firebaseError) {
+          console.error("Firebase update error:", firebaseError.message);
         }
       }
 
-      return res.json({ message: "Webhook processed", order_id, status: statusInfo.status });
+      return res.json({ 
+        success: true,
+        message: "Webhook processed successfully", 
+        order_id, 
+        status: statusInfo.status 
+      });
     }
 
     // Payment finish redirect
@@ -342,21 +428,25 @@ export default async function handler(req, res) {
         
         // Update database
         if (firebaseEnabled) {
-          const paymentsRef = db.collection("payments");
-          const snapshot = await paymentsRef.where("order_id", "==", order_id).get();
-          
-          if (!snapshot.empty) {
-            const doc = snapshot.docs[0];
-            const statusInfo = mapTransactionStatus(actualStatus);
-
-            await doc.ref.update({
-              status: statusInfo.status,
-              is_paid: statusInfo.isPaid,
-              transaction_status: actualStatus,
-              updated_at: admin.firestore.FieldValue.serverTimestamp(),
-            });
+          try {
+            const paymentsRef = db.collection("payments");
+            const snapshot = await paymentsRef.where("order_id", "==", order_id).get();
             
-            console.log(`💾 Database updated: ${statusInfo.status}, isPaid: ${statusInfo.isPaid}`);
+            if (!snapshot.empty) {
+              const doc = snapshot.docs[0];
+              const statusInfo = mapTransactionStatus(actualStatus);
+
+              await doc.ref.update({
+                status: statusInfo.status,
+                is_paid: statusInfo.isPaid,
+                transaction_status: actualStatus,
+                updated_at: admin.firestore.FieldValue.serverTimestamp(),
+              });
+              
+              console.log(`💾 Database updated: ${statusInfo.status}, isPaid: ${statusInfo.isPaid}`);
+            }
+          } catch (firebaseError) {
+            console.error("Firebase update error:", firebaseError.message);
           }
         }
       } catch (error) {
@@ -373,7 +463,7 @@ export default async function handler(req, res) {
       switch (statusInfo.status) {
         case "success":
           message = "Payment completed successfully";
-          redirect = "home";
+          redirect = "success";
           break;
         case "pending":
           message = "Payment is still pending";
@@ -417,6 +507,14 @@ export default async function handler(req, res) {
     // Check payment status
     if (method === 'GET' && path.startsWith('/payment-status/')) {
       const orderId = path.split('/payment-status/')[1];
+      
+      if (!orderId) {
+        return res.status(400).json({ 
+          success: false,
+          message: "Order ID is required" 
+        });
+      }
+
       console.log(`🔍 Checking payment status for order: ${orderId}`);
 
       // Check Midtrans directly
@@ -433,34 +531,38 @@ export default async function handler(req, res) {
       let firebaseUpdateSuccess = false;
       
       if (firebaseEnabled) {
-        const snapshot = await db.collection("payments")
-          .where("order_id", "==", orderId)
-          .get();
+        try {
+          const snapshot = await db.collection("payments")
+            .where("order_id", "==", orderId)
+            .get();
 
-        if (!snapshot.empty) {
-          firebaseData = snapshot.docs[0].data();
-          
-          // Update Firebase with latest Midtrans data
-          if (midtransData) {
-            const statusInfo = mapTransactionStatus(midtransData.transaction_status);
-
-            await snapshot.docs[0].ref.update({
-              status: statusInfo.status,
-              is_paid: statusInfo.isPaid,
-              transaction_status: midtransData.transaction_status,
-              updated_at: admin.firestore.FieldValue.serverTimestamp(),
-            });
-
-            firebaseData = { 
-              ...firebaseData, 
-              status: statusInfo.status, 
-              is_paid: statusInfo.isPaid,
-              transaction_status: midtransData.transaction_status
-            };
-            firebaseUpdateSuccess = true;
+          if (!snapshot.empty) {
+            firebaseData = snapshot.docs[0].data();
             
-            console.log(`💾 Firebase updated for ${orderId}: ${statusInfo.status}, isPaid: ${statusInfo.isPaid}`);
+            // Update Firebase with latest Midtrans data
+            if (midtransData) {
+              const statusInfo = mapTransactionStatus(midtransData.transaction_status);
+
+              await snapshot.docs[0].ref.update({
+                status: statusInfo.status,
+                is_paid: statusInfo.isPaid,
+                transaction_status: midtransData.transaction_status,
+                updated_at: admin.firestore.FieldValue.serverTimestamp(),
+              });
+
+              firebaseData = { 
+                ...firebaseData, 
+                status: statusInfo.status, 
+                is_paid: statusInfo.isPaid,
+                transaction_status: midtransData.transaction_status
+              };
+              firebaseUpdateSuccess = true;
+              
+              console.log(`💾 Firebase updated for ${orderId}: ${statusInfo.status}, isPaid: ${statusInfo.isPaid}`);
+            }
           }
+        } catch (firebaseError) {
+          console.error("Firebase query error:", firebaseError.message);
         }
       }
 
@@ -481,7 +583,7 @@ export default async function handler(req, res) {
           message = "Payment successful!";
           break;
         case "pending":
-          message = "Payment status: pending";
+          message = "Payment is pending";
           break;
         case "cancelled":
           message = "Payment was cancelled";
@@ -515,14 +617,19 @@ export default async function handler(req, res) {
     }
 
     // 404 for unmatched routes
-    return res.status(404).json({ message: "Endpoint not found" });
+    return res.status(404).json({ 
+      success: false,
+      message: "Endpoint not found",
+      path: path,
+      method: method
+    });
 
   } catch (error) {
     console.error("❌ Handler error:", error);
     return res.status(500).json({ 
       success: false,
       message: "Internal server error",
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
     });
   }
 }
