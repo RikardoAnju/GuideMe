@@ -4,6 +4,7 @@ import 'package:carousel_slider/carousel_slider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:guide_me/user/galeri.dart';
+import 'package:guide_me/user/notifikasiUser.dart';
 import 'diskusiPage.dart';
 import 'package:guide_me/Login.dart';
 import 'daftar_destinasi.dart';
@@ -11,9 +12,11 @@ import 'requestRole.dart';
 import 'tambah_destinasi.dart';
 import 'daftar_event.dart';
 import 'Profile.dart';
-import 'destinasi_detail_page.dart'; 
+import 'destinasi_detail_page.dart';
 import 'add_event.dart';
-import 'detail_event.dart'; 
+
+import 'package:badges/badges.dart' as badges;
+import 'detail_event.dart';
 import 'tiket.dart';
 import 'dart:async';
 
@@ -29,10 +32,14 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         scaffoldBackgroundColor: const Color(0xFFEEEEEE),
         canvasColor: const Color(0xFFEEEEEE),
-        fontFamily:
-            GoogleFonts.poppins().fontFamily, // Menggunakan Poppins sebagai default
+        fontFamily: GoogleFonts.poppins().fontFamily,
       ),
       home: const HomePage(),
+      routes: {
+        '/home': (context) => const HomePage(),
+        '/profile': (context) => const ProfileScreen(),
+        // Add other routes as needed
+      },
     );
   }
 }
@@ -54,17 +61,20 @@ class HomePageState extends State<HomePage>
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
+  
 
   String? userRole;
   bool _isLoggedIn = FirebaseAuth.instance.currentUser != null;
   String? _userName;
-  bool _showAppBarTitle =
-      false; // Ini tampaknya tidak digunakan secara aktif untuk AppBar
   int _currentCarouselIndex = 0;
   String _selectedDestinationCategory = 'All';
   String _selectedEventCategory = 'All';
   String _searchQuery = '';
   Timer? _timer;
+  Map<String, int> userCounts = {};
+  int touchedIndex = -1;
+  int _selectedNavIndex = 0;
+  int _notificationCount = 0;
 
   List<Map<String, dynamic>> _carouselItems = [];
   List<Map<String, dynamic>> _destinations = [];
@@ -117,12 +127,12 @@ class HomePageState extends State<HomePage>
     _scrollController.addListener(_onScroll);
     _searchController.addListener(_onSearchChanged);
     _searchFocusNode.addListener(_onSearchFocusChanged);
+    _fetchNotificationCount();
   }
 
   void _onSearchChanged() {
     setState(() {
       _searchQuery = _searchController.text.toLowerCase();
-      // Perbarui _showSearchResults hanya jika ada fokus dan query tidak kosong
       _showSearchResults = _searchFocusNode.hasFocus && _searchQuery.isNotEmpty;
       _updateSearchResults();
     });
@@ -130,9 +140,7 @@ class HomePageState extends State<HomePage>
 
   void _onSearchFocusChanged() {
     setState(() {
-      // Tampilkan hasil jika ada fokus dan query tidak kosong
       _showSearchResults = _searchFocusNode.hasFocus && _searchQuery.isNotEmpty;
-      // Jika fokus hilang dan query kosong, hapus hasil
       if (!_searchFocusNode.hasFocus && _searchQuery.isEmpty) {
         _searchResults.clear();
       }
@@ -141,7 +149,7 @@ class HomePageState extends State<HomePage>
 
   void _clearSearch() {
     _searchController.clear();
-    _searchFocusNode.unfocus(); // Penting untuk menghilangkan fokus
+    _searchFocusNode.unfocus();
     setState(() {
       _showSearchResults = false;
       _searchResults.clear();
@@ -149,12 +157,74 @@ class HomePageState extends State<HomePage>
     });
   }
 
-  // >>>>>> BAGIAN PENTING: Penanganan Tap Hasil Pencarian <<<<<<
+  Future<void> _fetchNotificationCount() async {
+    try {
+      User? user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // Fungsi untuk menghitung total notifikasi
+      Future<int> getTotalNotificationCount() async {
+        final snapshot1 =
+            await FirebaseFirestore.instance
+                .collection('notifications')
+                .where('isRead', isEqualTo: false)
+                .get();
+
+        final snapshot2 =
+            await FirebaseFirestore.instance
+                .collection('notifications_feedback')
+                .where('isRead', isEqualTo: false)
+                .get();
+
+        return snapshot1.docs.length + snapshot2.docs.length;
+      }
+
+      // Hitung initial count
+      int initialCount = await getTotalNotificationCount();
+      if (mounted) {
+        setState(() {
+          _notificationCount = initialCount;
+        });
+      }
+
+      // Listen untuk perubahan di collection 'notifications'
+      FirebaseFirestore.instance
+          .collection('notifications')
+          .where('isRead', isEqualTo: false)
+          .snapshots()
+          .listen((snapshot1) async {
+            if (mounted) {
+              // Hitung ulang total dari kedua collection
+              int totalCount = await getTotalNotificationCount();
+              setState(() {
+                _notificationCount = totalCount;
+              });
+            }
+          });
+
+      // Listen untuk perubahan di collection 'notifications_feedback'
+      FirebaseFirestore.instance
+          .collection('notifications_feedback')
+          .where('isRead', isEqualTo: false)
+          .snapshots()
+          .listen((snapshot2) async {
+            if (mounted) {
+              // Hitung ulang total dari kedua collection
+              int totalCount = await getTotalNotificationCount();
+              setState(() {
+                _notificationCount = totalCount;
+              });
+            }
+          });
+    } catch (e) {
+      debugPrint('Error fetching notification count: $e');
+    }
+  }
+
   void _handleSearchResultTap(Map<String, dynamic> item) {
     print('=== DEBUG SEARCH TAP ===');
     print('Full item data: $item');
 
-    // Pastikan 'id' dan 'type' ada dan tidak null
     final String? id = item['id'] as String?;
     final String? type = item['type'] as String?;
 
@@ -168,7 +238,6 @@ class HomePageState extends State<HomePage>
       return;
     }
 
-    // Bersihkan hasil pencarian sebelum navigasi
     _searchController.clear();
     _searchFocusNode.unfocus();
     setState(() {
@@ -177,7 +246,6 @@ class HomePageState extends State<HomePage>
       _searchQuery = '';
     });
 
-    // Tunggu sebentar agar UI bersih dulu
     Future.delayed(const Duration(milliseconds: 100), () {
       try {
         if (type == 'destination') {
@@ -218,7 +286,6 @@ class HomePageState extends State<HomePage>
     }
   }
 
-  // >>>>>> BAGIAN PENTING: Perbaikan untuk method _updateSearchResults <<<<<<
   void _updateSearchResults() {
     if (_searchQuery.isEmpty) {
       setState(() {
@@ -230,10 +297,8 @@ class HomePageState extends State<HomePage>
 
     List<Map<String, dynamic>> tempResults = [];
 
-    // Search in destinations dengan validasi ketat
     for (var dest in _destinations) {
       try {
-        // Skip jika data tidak valid
         if (dest['id'] == null ||
             dest['namaDestinasi'] == null ||
             dest['namaDestinasi'].toString().trim().isEmpty) {
@@ -249,7 +314,7 @@ class HomePageState extends State<HomePage>
             category.contains(_searchQuery) ||
             location.contains(_searchQuery)) {
           tempResults.add({
-            'id': dest['id'].toString(), // Pastikan ini String
+            'id': dest['id'].toString(),
             'name': dest['namaDestinasi'].toString(),
             'type': 'destination',
             'category': dest['kategori']?.toString() ?? 'Umum',
@@ -262,10 +327,8 @@ class HomePageState extends State<HomePage>
       }
     }
 
-    // Search in events dengan validasi ketat
     for (var event in _events) {
       try {
-        // Skip jika data tidak valid
         if (event['id'] == null ||
             event['namaEvent'] == null ||
             event['namaEvent'].toString().trim().isEmpty) {
@@ -278,7 +341,7 @@ class HomePageState extends State<HomePage>
 
         if (name.contains(_searchQuery) || category.contains(_searchQuery)) {
           tempResults.add({
-            'id': event['id'].toString(), // Pastikan ini String
+            'id': event['id'].toString(),
             'name': event['namaEvent'].toString(),
             'type': 'event',
             'category': event['kategori']?.toString() ?? 'Umum',
@@ -290,7 +353,6 @@ class HomePageState extends State<HomePage>
       }
     }
 
-    // Limit hasil untuk performa yang lebih baik (maksimal 10 hasil)
     if (tempResults.length > 10) {
       tempResults = tempResults.take(10).toList();
     }
@@ -298,13 +360,16 @@ class HomePageState extends State<HomePage>
     print('Search results count: ${tempResults.length}');
     for (var result in tempResults) {
       print(
-          'Result: ${result['name']}, ID: ${result['id']}, Type: ${result['type']}');
+        'Result: ${result['name']}, ID: ${result['id']}, Type: ${result['type']}',
+      );
     }
 
     setState(() {
       _searchResults = tempResults;
       _showSearchResults =
-          _searchFocusNode.hasFocus && _searchResults.isNotEmpty && _searchQuery.isNotEmpty;
+          _searchFocusNode.hasFocus &&
+          _searchResults.isNotEmpty &&
+          _searchQuery.isNotEmpty;
     });
   }
 
@@ -314,14 +379,13 @@ class HomePageState extends State<HomePage>
       _checkLoginStatus(),
       _fetchUserName(),
       fetchCarouselItems(),
-      _fetchDestinations(), // Memuat destinasi
-      _fetchEvents(), // Memuat event
+      _fetchDestinations(),
+      _fetchEvents(),
     ]);
     _updateLastActive();
     _startActiveTimer();
   }
 
-  // >>>>>> BAGIAN PENTING: Memastikan ID di ambil saat fetch <<<<<<
   Future<void> _fetchDestinations() async {
     try {
       print('=== FETCHING DESTINATIONS ===');
@@ -336,27 +400,55 @@ class HomePageState extends State<HomePage>
           _destinations =
               snapshot.docs.map((doc) {
                 final data = doc.data();
-                // PASTIKAN ID selalu ada dan berupa string
                 data['id'] = doc.id;
-
-                // Validasi data wajib
                 data['namaDestinasi'] =
                     data['namaDestinasi'] ?? 'Nama tidak tersedia';
                 data['kategori'] = data['kategori'] ?? 'Umum';
                 data['lokasi'] = data['lokasi'] ?? 'Lokasi tidak tersedia';
-                data['rating'] = (data['rating'] ?? 0).toDouble();
+
+                // PERBAIKAN: Pastikan rating dalam format yang benar dan ada validasi
+                final dynamic ratingValue = data['rating'];
+                double rating = 0.0;
+
+                if (ratingValue != null) {
+                  if (ratingValue is num) {
+                    rating = ratingValue.toDouble();
+                  } else if (ratingValue is String) {
+                    rating = double.tryParse(ratingValue) ?? 0.0;
+                  }
+                }
+
+                // Pastikan rating dalam rentang 0.0-5.0
+                rating = rating.clamp(0.0, 5.0);
+                data['rating'] = rating;
+
                 data['imageUrl'] = data['imageUrl'] ?? '';
 
                 print(
-                    'Fetched Destination: ${data['namaDestinasi']}, ID: ${doc.id}');
+                  'Fetched Destination: ${data['namaDestinasi']}, ID: ${doc.id}, Rating: $rating',
+                );
                 return data;
               }).toList();
           _isLoadingDestinations = false;
         });
-
-        // Update search results setelah data dimuat
         _updateSearchResults();
         print('Total destinations loaded: ${_destinations.length}');
+
+        // PERBAIKAN: Tambahkan log untuk debugging destinasi berdasarkan rating
+        final popularDestinations =
+            _destinations.where((dest) {
+              final double rating = (dest['rating'] as num).toDouble();
+              return rating >= 4.0 && rating <= 5.0;
+            }).toList();
+
+        final otherDestinations =
+            _destinations.where((dest) {
+              final double rating = (dest['rating'] as num).toDouble();
+              return rating < 4.0;
+            }).toList();
+
+        print('Popular destinations (4.0-5.0): ${popularDestinations.length}');
+        print('Other destinations (<4.0): ${otherDestinations.length}');
       }
     } catch (e) {
       print('Error fetching destinations: $e');
@@ -378,21 +470,15 @@ class HomePageState extends State<HomePage>
           _events =
               snapshot.docs.map((doc) {
                 final data = doc.data();
-                // PASTIKAN ID selalu ada dan berupa string
                 data['id'] = doc.id;
-
-                // Validasi data wajib
                 data['namaEvent'] = data['namaEvent'] ?? 'Event tidak tersedia';
                 data['kategori'] = data['kategori'] ?? 'Umum';
                 data['imageUrl'] = data['imageUrl'] ?? '';
-
                 print('Fetched Event: ${data['namaEvent']}, ID: ${doc.id}');
                 return data;
               }).toList();
           _isLoadingEvents = false;
         });
-
-        // Update search results setelah data dimuat
         _updateSearchResults();
         print('Total events loaded: ${_events.length}');
       }
@@ -432,21 +518,31 @@ class HomePageState extends State<HomePage>
         }).toList();
 
     if (isPopular) {
-      // Urutkan berdasarkan rating tertinggi untuk terpopuler
+      // PERBAIKAN: Filter hanya rating 4.0-5.0 untuk wisata populler
+      filtered =
+          filtered.where((dest) {
+            final double rating = (dest['rating'] as num).toDouble();
+            return rating >= 4.0 && rating <= 5.0;
+          }).toList();
+
+      // Sort berdasarkan rating tertinggi
       filtered.sort(
         (a, b) => (b['rating'] as double).compareTo(a['rating'] as double),
       );
-      // Ambil hanya setengah teratas (atau jumlah tertentu)
-      final int halfLength = (filtered.length / 2).ceil();
-      return filtered.take(halfLength).toList();
+
+      return filtered;
     } else {
-      // Untuk "Lainnya", bisa diurutkan secara berbeda atau diambil sisanya
-      // Saat ini diurutkan rating juga dan mengambil setengah bawah
+      filtered =
+          filtered.where((dest) {
+            final double rating = (dest['rating'] as num).toDouble();
+            return rating < 4.0;
+          }).toList();
+
       filtered.sort(
         (a, b) => (b['rating'] as double).compareTo(a['rating'] as double),
       );
-      final int halfLength = (filtered.length / 2).ceil();
-      return filtered.skip(halfLength).toList();
+
+      return filtered;
     }
   }
 
@@ -459,12 +555,7 @@ class HomePageState extends State<HomePage>
     }).toList();
   }
 
-  void _onScroll() {
-    final showTitle = _scrollController.offset > 150;
-    if (showTitle != _showAppBarTitle && mounted) {
-      setState(() => _showAppBarTitle = showTitle);
-    }
-  }
+  void _onScroll() {}
 
   Future<void> _checkUserRole() async {
     if (!mounted) return;
@@ -500,7 +591,6 @@ class HomePageState extends State<HomePage>
               .doc(user.uid)
               .get();
       if (doc.exists && mounted) {
-        // Tambahkan pengecekan doc.exists
         setState(() => _userName = doc['username']);
       }
     }
@@ -515,7 +605,6 @@ class HomePageState extends State<HomePage>
               .doc(user.uid)
               .get();
       if (doc.exists) {
-        // Tambahkan pengecekan doc.exists
         return doc['role'];
       }
     }
@@ -563,7 +652,10 @@ class HomePageState extends State<HomePage>
       },
       drawer: _buildDrawer(),
       body: _buildBody(),
-      bottomNavigationBar: CustomBottomNavBar(userRole: userRole),
+      bottomNavigationBar: CustomBottomNavBar(
+        userRole: userRole,
+        isLoggedIn: _isLoggedIn, // Pass login status
+      ),
     );
   }
 
@@ -573,7 +665,7 @@ class HomePageState extends State<HomePage>
         'icon': Icons.map,
         'title': 'Destinasi',
         'action': () {
-          Navigator.pop(context); // Tutup drawer
+          Navigator.pop(context);
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -586,12 +678,10 @@ class HomePageState extends State<HomePage>
         'icon': Icons.chat,
         'title': 'Forum Diskusi',
         'action': () {
-          Navigator.pop(context); // Tutup drawer
+          Navigator.pop(context);
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (context) => const DiscussPage(),
-            ),
+            MaterialPageRoute(builder: (context) => const DiscussPage()),
           );
         },
       },
@@ -599,7 +689,7 @@ class HomePageState extends State<HomePage>
         'icon': Icons.event,
         'title': 'Event',
         'action': () {
-          Navigator.pop(context); // Tutup drawer
+          Navigator.pop(context);
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => DaftarEventPage()),
@@ -610,22 +700,21 @@ class HomePageState extends State<HomePage>
         'icon': Icons.image,
         'title': 'Galeri',
         'action': () {
-         Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => GaleriPage())
-         );
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => GaleriPage()),
+          );
         },
       },
     ];
 
-    // Menambahkan item hanya jika user belum login atau belum memiliki role tertentu
     if (_isLoggedIn && userRole != "owner") {
       drawerItems.addAll([
         {
           'icon': Icons.tips_and_updates,
           'title': 'Tambah Destinasi',
           'action': () {
-            Navigator.pop(context); // Tutup drawer
+            Navigator.pop(context);
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => TambahDestinasiPage()),
@@ -633,21 +722,10 @@ class HomePageState extends State<HomePage>
           },
         },
         {
-          'icon': Icons.confirmation_number,
-          'title': 'Tiket',
-          'action': () {
-            Navigator.pop(context); // Tutup drawer
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => TicketPage()),
-            );
-          },
-        },
-        {
           'icon': Icons.admin_panel_settings,
           'title': 'Request Role',
           'action': () {
-            Navigator.pop(context); // Tutup drawer
+            Navigator.pop(context);
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => RequestRolePage()),
@@ -662,7 +740,7 @@ class HomePageState extends State<HomePage>
         'icon': Icons.calendar_today,
         'title': 'Add Event',
         'action': () {
-          Navigator.pop(context); // Tutup drawer
+          Navigator.pop(context);
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => TambahEventPage()),
@@ -675,20 +753,19 @@ class HomePageState extends State<HomePage>
       'icon': _isLoggedIn ? Icons.logout : Icons.login,
       'title': _isLoggedIn ? "Keluar" : "Masuk",
       'action': () async {
-        Navigator.pop(context); // Tutup drawer terlebih dahulu
+        Navigator.pop(context);
         if (_isLoggedIn) {
           await FirebaseAuth.instance.signOut();
           if (mounted) {
             setState(() {
               userRole = null;
               _userName = null;
-              _isLoggedIn = false; // Update login status
+              _isLoggedIn = false;
             });
-            // Gunakan pushAndRemoveUntil untuk membersihkan tumpukan navigasi
             Navigator.pushAndRemoveUntil(
               context,
               MaterialPageRoute(builder: (context) => const HomePage()),
-              (Route<dynamic> route) => false, // Hapus semua rute sebelumnya
+              (Route<dynamic> route) => false,
             );
           }
         } else {
@@ -744,7 +821,6 @@ class HomePageState extends State<HomePage>
 
   Widget _buildBody() {
     return GestureDetector(
-      // Ini akan menutup overlay pencarian ketika mengklik di luar area pencarian
       onTap: () {
         if (_showSearchResults) {
           _clearSearch();
@@ -752,37 +828,93 @@ class HomePageState extends State<HomePage>
       },
       child: Stack(
         children: [
-          SingleChildScrollView(
+          CustomScrollView(
             controller: _scrollController,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildSearchBar(),
-                const SizedBox(height: 5),
-                _buildWelcomeSection(),
-                const SizedBox(height: 20),
-                _buildCarousel(),
-                _buildDestinationCategoriesSection(),
-                _buildEventCategoriesSection(),
-                _buildDestinationSection(
-                  title: "Tempat Wisata Batam Terpopuler",
-                  icon: Icons.star,
-                  isPopular: true,
+            slivers: [
+              SliverAppBar(
+                backgroundColor: grayColor,
+                floating: true,
+                pinned: true,
+                snap: false,
+                elevation: 0,
+                leading: IconButton(
+                  icon: AnimatedIcon(
+                    icon: AnimatedIcons.menu_close,
+                    progress: _animationController,
+                    color: Colors.black,
+                  ),
+                  onPressed: _toggleDrawer,
                 ),
-                _buildDestinationSection(
-                  title: "Tempat Wisata Lainnya",
-                  icon: Icons.location_on,
-                  isPopular: false,
-                ),
-                _buildEventSection(title: "Event Terkini", icon: Icons.event),
-                const SizedBox(height: 16),
-              ],
-            ),
+                titleSpacing: 0,
+                title: _buildSearchBar(),
+                actions: [
+                  badges.Badge(
+                    badgeContent: Text(
+                      _notificationCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    showBadge: _notificationCount > 0,
+                    position: badges.BadgePosition.topEnd(top: -2, end: -2),
+                    badgeStyle: badges.BadgeStyle(
+                      badgeColor: Colors.red,
+                      borderRadius: BorderRadius.circular(12),
+                      padding: const EdgeInsets.all(4),
+                    ),
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.notifications,
+                        color: Colors.black,
+                      ),
+                      onPressed: () {
+                        final userId =
+                            FirebaseAuth.instance.currentUser?.uid ?? '';
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (context) => NotificationsUserPage(userId: userId),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ),
+              SliverList(
+                delegate: SliverChildListDelegate([
+                  const SizedBox(height: 5),
+                  _buildWelcomeSection(),
+                  const SizedBox(height: 20),
+                  _buildCarousel(),
+                  _buildDestinationCategoriesSection(),
+                  _buildEventCategoriesSection(),
+                  _buildDestinationSection(
+                    title: "Tempat Wisata Batam Terpopuler",
+                    icon: Icons.star,
+                    isPopular: true,
+                  ),
+                  _buildDestinationSection(
+                    title: "Tempat Wisata Lainnya",
+                    icon: Icons.location_on,
+                    isPopular: false,
+                  ),
+                  _buildEventSection(title: "Event Terkini", icon: Icons.event),
+                  const SizedBox(height: 16),
+                ]),
+              ),
+            ],
           ),
-          // Overlay hasil pencarian
+          // Position the search results dynamically
           if (_showSearchResults)
             Positioned(
-              top: 70, // Sesuaikan posisi agar di bawah search bar
+              top:
+                  MediaQuery.of(context).padding.top +
+                  kToolbarHeight, // Adjusted top
               left: 16,
               right: 16,
               child: _buildSearchResults(),
@@ -792,58 +924,38 @@ class HomePageState extends State<HomePage>
     );
   }
 
+  // The _buildSearchBar method now only contains the TextField.
+  // It's wrapped in a flexible space in the SliverAppBar.
   Widget _buildSearchBar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      color: grayColor,
-      child: SafeArea( // Tambahkan SafeArea di sini
-        child: Row(
-          children: [
-            IconButton(
-              icon: AnimatedIcon(
-                icon: AnimatedIcons.menu_close,
-                progress: _animationController,
-                color: Colors.black,
-              ),
-              onPressed: _toggleDrawer,
-            ),
-            Expanded(
-              child: TextField(
-                controller: _searchController,
-                focusNode: _searchFocusNode,
-                decoration: InputDecoration(
-                  hintText: "Search destinations or events...",
-                  prefixIcon: const Icon(Icons.search),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10.0),
-                  suffixIcon:
-                      _searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear, color: Colors.grey),
-                              onPressed: _clearSearch,
-                            )
-                          : null,
-                ),
-              ),
-            ),
-          ],
+    return TextField(
+      controller: _searchController,
+      focusNode: _searchFocusNode,
+      decoration: InputDecoration(
+        hintText: "Search destinations or events...",
+        prefixIcon: const Icon(Icons.search),
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(20),
+          borderSide: BorderSide.none,
         ),
+        contentPadding: const EdgeInsets.symmetric(vertical: 10.0),
+        suffixIcon:
+            _searchQuery.isNotEmpty
+                ? IconButton(
+                  icon: const Icon(Icons.clear, color: Colors.grey),
+                  onPressed: _clearSearch,
+                )
+                : null,
       ),
     );
   }
 
   Widget _buildSearchResults() {
-    // Jangan tampilkan apapun jika query kosong
     if (_searchQuery.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    // Tampilkan pesan "tidak ada hasil" jika pencarian tidak menemukan apapun
     if (_searchResults.isEmpty && _searchQuery.isNotEmpty) {
       return Container(
         decoration: BoxDecoration(
@@ -873,8 +985,8 @@ class HomePageState extends State<HomePage>
 
     final double maxResultsHeight = MediaQuery.of(context).size.height * 0.4;
 
-    return Material( // Wrap with Material to ensure proper elevation and inkwell effects
-      elevation: 4.0, // Add some elevation
+    return Material(
+      elevation: 4.0,
       borderRadius: BorderRadius.circular(8),
       child: Container(
         decoration: BoxDecoration(
@@ -885,7 +997,6 @@ class HomePageState extends State<HomePage>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Header hasil pencarian
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
@@ -915,7 +1026,6 @@ class HomePageState extends State<HomePage>
                 ],
               ),
             ),
-            // Daftar hasil
             Flexible(
               child: ListView.separated(
                 shrinkWrap: true,
@@ -953,7 +1063,7 @@ class HomePageState extends State<HomePage>
                       ),
                     ),
                     title: Text(
-                      item['name'] as String, // Cast to String
+                      item['name'] as String,
                       style: const TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 14,
@@ -992,7 +1102,7 @@ class HomePageState extends State<HomePage>
     if (!_isLoggedIn || _userName == null) return const SizedBox.shrink();
 
     return Container(
-      padding: const EdgeInsets.only(top: 30, left: 16, right: 16),
+      padding: const EdgeInsets.only(top: 10, left: 16, right: 16),
       color: grayColor,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1030,26 +1140,26 @@ class HomePageState extends State<HomePage>
               child:
                   _carouselItems.isEmpty
                       ? const Padding(
-                          padding: EdgeInsets.all(20.0),
-                          child: Center(child: CircularProgressIndicator()),
-                        )
+                        padding: EdgeInsets.all(20.0),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
                       : CarouselSlider(
-                          options: CarouselOptions(
-                            height: 220.0,
-                            autoPlay: true,
-                            autoPlayInterval: const Duration(seconds: 3),
-                            viewportFraction: 1.0,
-                            onPageChanged: (index, reason) {
-                              if (mounted) {
-                                setState(() => _currentCarouselIndex = index);
-                              }
-                            },
-                          ),
-                          items:
-                              _carouselItems
-                                  .map((item) => _buildCarouselItem(item))
-                                  .toList(),
+                        options: CarouselOptions(
+                          height: 220.0,
+                          autoPlay: true,
+                          autoPlayInterval: const Duration(seconds: 3),
+                          viewportFraction: 1.0,
+                          onPageChanged: (index, reason) {
+                            if (mounted) {
+                              setState(() => _currentCarouselIndex = index);
+                            }
+                          },
                         ),
+                        items:
+                            _carouselItems
+                                .map((item) => _buildCarouselItem(item))
+                                .toList(),
+                      ),
             ),
           ),
           const SizedBox(height: 12),
@@ -1088,36 +1198,36 @@ class HomePageState extends State<HomePage>
                 item['imageUrl'] != null &&
                         (item['imageUrl'] as String).isNotEmpty
                     ? Image.network(
-                        item['imageUrl'] as String, // Pastikan ini String
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: double.infinity,
-                        errorBuilder:
-                            (_, __, ___) => const Center(
-                              child: Icon(
-                                Icons.broken_image,
-                                size: 48,
-                                color: Colors.grey,
-                              ),
+                      item['imageUrl'] as String,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                      errorBuilder:
+                          (_, __, ___) => const Center(
+                            child: Icon(
+                              Icons.broken_image,
+                              size: 48,
+                              color: Colors.grey,
                             ),
-                        loadingBuilder:
-                            (_, child, progress) =>
-                                progress == null
-                                    ? child
-                                    : const Center(
-                                        child: CircularProgressIndicator(),
-                                      ),
-                      )
-                    : Container(
-                        color: Colors.grey.shade300,
-                        child: const Center(
-                          child: Icon(
-                            Icons.image_not_supported,
-                            size: 48,
-                            color: Colors.grey,
                           ),
+                      loadingBuilder:
+                          (_, child, progress) =>
+                              progress == null
+                                  ? child
+                                  : const Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                    )
+                    : Container(
+                      color: Colors.grey.shade300,
+                      child: const Center(
+                        child: Icon(
+                          Icons.image_not_supported,
+                          size: 48,
+                          color: Colors.grey,
                         ),
                       ),
+                    ),
           ),
           ClipRRect(
             borderRadius: BorderRadius.circular(15),
@@ -1142,7 +1252,7 @@ class HomePageState extends State<HomePage>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    item['title'] ?? 'No Title', // Default jika null
+                    item['title'] ?? 'No Title',
                     style: GoogleFonts.poppins(
                       color: Colors.white,
                       fontSize: 20,
@@ -1151,8 +1261,7 @@ class HomePageState extends State<HomePage>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    item['description'] ??
-                        'No Description', // Default jika null
+                    item['description'] ?? 'No Description',
                     style: GoogleFonts.poppins(
                       color: Colors.white,
                       fontSize: 14,
@@ -1244,11 +1353,9 @@ class HomePageState extends State<HomePage>
         if (mounted) {
           setState(() {
             if (isForDestination) {
-              _selectedDestinationCategory =
-                  category['name'] as String; // Pastikan String
+              _selectedDestinationCategory = category['name'] as String;
             } else {
-              _selectedEventCategory =
-                  category['name'] as String; // Pastikan String
+              _selectedEventCategory = category['name'] as String;
             }
           });
         }
@@ -1277,7 +1384,7 @@ class HomePageState extends State<HomePage>
                 ],
               ),
               child: Icon(
-                category['icon'] as IconData, // Pastikan IconData
+                category['icon'] as IconData,
                 color:
                     isSelected ? Colors.white : primaryColor.withOpacity(0.8),
                 size: 30,
@@ -1285,7 +1392,7 @@ class HomePageState extends State<HomePage>
             ),
             const SizedBox(height: 8),
             Text(
-              category['name'] as String, // Pastikan String
+              category['name'] as String,
               style: GoogleFonts.poppins(
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
@@ -1330,6 +1437,20 @@ class HomePageState extends State<HomePage>
                   fontWeight: FontWeight.bold,
                 ),
               ),
+              // PERBAIKAN: Tambahkan indikator rating untuk wisata populer
+              if (isPopular) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -1338,40 +1459,54 @@ class HomePageState extends State<HomePage>
           child:
               destinations.isEmpty
                   ? Center(
-                      child: Text(
-                        "No destinations found.",
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.grey[700],
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          isPopular
+                              ? Icons.star_border
+                              : Icons.location_on_outlined,
+                          size: 48,
+                          color: Colors.grey[400],
                         ),
-                      ),
-                    )
-                  : ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      itemCount: destinations.length,
-                      itemBuilder: (context, index) {
-                        final destination = destinations[index];
-                        return Container(
-                          width: 180,
-                          margin: const EdgeInsets.only(right: 16),
-                          child: DestinationCard(
-                            id:
-                                destination['id'] as String, // Pastikan ini String
-                            title: destination['namaDestinasi'] as String,
-                            image: destination['imageUrl'] as String,
-                            rating:
-                                (destination['rating'] as num).toDouble(), // Pastikan double
-                            location: destination['lokasi'] as String,
-                            kategori: destination['kategori'] as String,
+                        const SizedBox(height: 8),
+                        Text(
+                          isPopular
+                              ? "Belum ada destinasi dengan rating 4.0-5.0"
+                              : "Belum ada destinasi lainnya",
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey[600],
                           ),
-                        );
-                      },
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
+                  )
+                  : ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    itemCount: destinations.length,
+                    itemBuilder: (context, index) {
+                      final destination = destinations[index];
+                      return Container(
+                        width: 180,
+                        margin: const EdgeInsets.only(right: 16),
+                        child: DestinationCard(
+                          id: destination['id'] as String,
+                          title: destination['namaDestinasi'] as String,
+                          image: destination['imageUrl'] as String,
+                          rating: (destination['rating'] as num).toDouble(),
+                          location: destination['lokasi'] as String,
+                          kategori: destination['kategori'] as String,
+                        ),
+                      );
+                    },
+                  ),
         ),
       ],
     );
@@ -1412,44 +1547,42 @@ class HomePageState extends State<HomePage>
           child:
               events.isEmpty
                   ? Center(
-                      child: Text(
-                        "No events found.",
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.grey[700],
-                        ),
+                    child: Text(
+                      "No events found.",
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[700],
                       ),
-                    )
-                  : ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      itemCount: events.length,
-                      itemBuilder: (context, index) {
-                        final event = events[index];
-                        return Container(
-                          width: 180,
-                          margin: const EdgeInsets.only(right: 16),
-                          child: EventCard(
-                            id:
-                                event['id'] as String, // Pastikan ini String
-                            title: event['namaEvent'] as String,
-                            image: event['imageUrl'] as String,
-                            category: event['kategori'] as String,
-                          ),
-                        );
-                      },
                     ),
+                  )
+                  : ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    itemCount: events.length,
+                    itemBuilder: (context, index) {
+                      final event = events[index];
+                      return Container(
+                        width: 180,
+                        margin: const EdgeInsets.only(right: 16),
+                        child: EventCard(
+                          id: event['id'] as String,
+                          title: event['namaEvent'] as String,
+                          image: event['imageUrl'] as String,
+                          category: event['kategori'] as String,
+                        ),
+                      );
+                    },
+                  ),
         ),
       ],
     );
   }
 }
 
-// Tidak ada perubahan signifikan di sini, tapi pastikan ID yang diterima adalah String
 class DestinationCard extends StatelessWidget {
   final String id;
   final String title;
@@ -1498,30 +1631,30 @@ class DestinationCard extends StatelessWidget {
                 child:
                     image.isNotEmpty
                         ? Image.network(
-                            image,
-                            fit: BoxFit.cover,
-                            errorBuilder:
-                                (_, __, ___) => Container(
-                                  color: Colors.grey.shade300,
-                                  child: const Center(
-                                    child: Icon(
-                                      Icons.image_not_supported,
-                                      size: 50,
-                                      color: Colors.grey,
-                                    ),
+                          image,
+                          fit: BoxFit.cover,
+                          errorBuilder:
+                              (_, __, ___) => Container(
+                                color: Colors.grey.shade300,
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.image_not_supported,
+                                    size: 50,
+                                    color: Colors.grey,
                                   ),
                                 ),
-                          )
-                        : Container(
-                            color: Colors.grey.shade300,
-                            child: const Center(
-                              child: Icon(
-                                Icons.image_not_supported,
-                                size: 50,
-                                color: Colors.grey,
                               ),
+                        )
+                        : Container(
+                          color: Colors.grey.shade300,
+                          child: const Center(
+                            child: Icon(
+                              Icons.image_not_supported,
+                              size: 50,
+                              color: Colors.grey,
                             ),
                           ),
+                        ),
               ),
               Positioned.fill(
                 child: Container(
@@ -1618,7 +1751,6 @@ class DestinationCard extends StatelessWidget {
   }
 }
 
-// Tidak ada perubahan signifikan di sini, tapi pastikan ID yang diterima adalah String
 class EventCard extends StatelessWidget {
   final String id;
   final String title;
@@ -1661,30 +1793,30 @@ class EventCard extends StatelessWidget {
                 child:
                     image.isNotEmpty
                         ? Image.network(
-                            image,
-                            fit: BoxFit.cover,
-                            errorBuilder:
-                                (_, __, ___) => Container(
-                                  color: Colors.grey.shade300,
-                                  child: const Center(
-                                    child: Icon(
-                                      Icons.broken_image,
-                                      size: 50,
-                                      color: Colors.grey,
-                                    ),
+                          image,
+                          fit: BoxFit.cover,
+                          errorBuilder:
+                              (_, __, ___) => Container(
+                                color: Colors.grey.shade300,
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.broken_image,
+                                    size: 50,
+                                    color: Colors.grey,
                                   ),
                                 ),
-                          )
-                        : Container(
-                            color: Colors.grey.shade300,
-                            child: const Center(
-                              child: Icon(
-                                Icons.broken_image,
-                                size: 50,
-                                color: Colors.grey,
                               ),
+                        )
+                        : Container(
+                          color: Colors.grey.shade300,
+                          child: const Center(
+                            child: Icon(
+                              Icons.broken_image,
+                              size: 50,
+                              color: Colors.grey,
                             ),
                           ),
+                        ),
               ),
               Positioned.fill(
                 child: Container(
@@ -1743,7 +1875,12 @@ class EventCard extends StatelessWidget {
 
 class CustomBottomNavBar extends StatefulWidget {
   final String? userRole;
-  const CustomBottomNavBar({super.key, this.userRole});
+  final bool isLoggedIn; // Add isLoggedIn parameter
+  const CustomBottomNavBar({
+    super.key,
+    this.userRole,
+    required this.isLoggedIn,
+  });
   @override
   State<CustomBottomNavBar> createState() => _CustomBottomNavBarState();
 }
@@ -1751,87 +1888,19 @@ class CustomBottomNavBar extends StatefulWidget {
 class _CustomBottomNavBarState extends State<CustomBottomNavBar> {
   int _selectedIndex = 1;
 
-  void _onItemTapped(int index) {
-    // Check if the current route is already the target route to prevent unnecessary pushes
-    String? currentRouteName = ModalRoute.of(context)?.settings.name;
-
-    if (index == 1 && currentRouteName == '/') { // HomePage is root '/'
-      return; // Already on Home, do nothing
-    } else if (index == 2 && currentRouteName == '/profile') { // Assuming ProfileScreen has a route name of '/profile'
-      return; // Already on Profile, do nothing
-    }
-
-    setState(() => _selectedIndex = index);
-    final currentUser = FirebaseAuth.instance.currentUser;
-
-    switch (index) {
-      case 0:
-        // Future: Handle notifications page
-        print('Notifications tapped');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Notifications page (Under Construction)')),
-        );
-        break;
-      case 1:
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
-          (Route<dynamic> route) => false, // Remove all previous routes
-        );
-        break;
-      case 2:
-        if (currentUser == null) {
-          showDialog(
-            context: context,
-            builder:
-                (context) => AlertDialog(
-                  title: const Text('Akses Ditolak'),
-                  content: const Text(
-                    'Silakan login terlebih dahulu untuk mengakses profil.',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('OK'),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.pop(context); // Tutup dialog
-                        Navigator.push(
-                          // Navigasi ke login
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const LoginScreen(),
-                          ),
-                        );
-                      },
-                      child: const Text('Login'),
-                    ),
-                  ],
-                ),
-          );
-        } else {
-          Navigator.pushReplacement( // Use pushReplacement to avoid stacking ProfileScreen
-            context,
-            MaterialPageRoute(builder: (context) => const ProfileScreen()),
-          );
-        }
-        break;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    // Set selected index based on current route for proper highlight if navigating from external
-    if (ModalRoute.of(context)?.settings.name == '/') {
+    final currentWidgetType = context.widget.runtimeType;
+
+    if (currentWidgetType == HomePage) {
       _selectedIndex = 1;
-    } else if (ModalRoute.of(context)?.settings.name == '/profile') {
+    } else if (currentWidgetType == ProfileScreen) {
       _selectedIndex = 2;
+    } else if (currentWidgetType == TicketPage) {
+      _selectedIndex = 0;
     } else {
-      // Default or other pages, assume home if not explicitly profile
       _selectedIndex = 1;
     }
-
 
     return Container(
       height: 60,
@@ -1850,18 +1919,77 @@ class _CustomBottomNavBarState extends State<CustomBottomNavBar> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _buildNavItem(Icons.notifications, 0),
-          _buildNavItem(Icons.home, 1),
-          _buildNavItem(Icons.person, 2),
+          _buildNavItem(
+            context,
+            Icons.confirmation_number,
+            0,
+            TicketPage(),
+            widget.isLoggedIn,
+          ),
+          _buildNavItem(context, Icons.home, 1, HomePage(), widget.isLoggedIn),
+          _buildNavItem(
+            context,
+            Icons.person,
+            2,
+            ProfileScreen(),
+            widget.isLoggedIn,
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildNavItem(IconData icon, int index) {
+  Widget _buildNavItem(
+    BuildContext context,
+    IconData icon,
+    int index,
+    Widget destinationPage,
+    bool isLoggedIn, // Receive isLoggedIn
+  ) {
     final bool isSelected = _selectedIndex == index;
+
     return InkWell(
-      onTap: () => _onItemTapped(index),
+      onTap: () {
+        if (destinationPage is ProfileScreen && !isLoggedIn) {
+          // Show alert dialog if not logged in and trying to access profile
+          showDialog(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: const Text('Login Required'),
+                content: const Text(
+                  'Anda belum login. Silakan login terlebih dahulu untuk mengakses fitur ini.',
+                ),
+                actions: <Widget>[
+                  TextButton(
+                    child: const Text('OK'),
+                    onPressed: () {
+                      Navigator.of(context).pop(); // Close the dialog
+                    },
+                  ),
+                  TextButton(
+                    child: const Text('Login'),
+                    onPressed: () {
+                      Navigator.of(context).pop(); // Close the dialog
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const LoginScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              );
+            },
+          );
+        } else if (context.widget.runtimeType != destinationPage.runtimeType) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => destinationPage),
+          );
+        }
+      },
       borderRadius: BorderRadius.circular(50),
       child: Container(
         padding: const EdgeInsets.all(12),

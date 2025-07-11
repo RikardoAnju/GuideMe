@@ -22,7 +22,7 @@ class _DashboardPageState extends State<DashboardPage> {
   ];
 
   // Background colors
-  final Color _backgroundColor = Colors.grey[300]!;
+  final Color backgroundColor = Colors.grey[300]!;
   final Color _cardBackgroundColor = Colors.grey[200]!;
 
   // State variables

@@ -7,6 +7,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'dart:async';
 import 'package:guide_me/user/home.dart';
 
 class KontrollEventPage extends StatefulWidget {
@@ -23,7 +24,8 @@ class KontrollEventPageState extends State<KontrollEventPage> {
   final TextEditingController _lokasiController = TextEditingController();
   final TextEditingController _hargaController = TextEditingController();
   final TextEditingController _tanggalMulaiController = TextEditingController();
-  final TextEditingController _tanggalSelesaiController = TextEditingController();
+  final TextEditingController _tanggalSelesaiController =
+      TextEditingController();
   final TextEditingController _waktuMulaiController = TextEditingController();
   final TextEditingController _waktuSelesaiController = TextEditingController();
   final TextEditingController _urlMapsController = TextEditingController();
@@ -38,8 +40,8 @@ class KontrollEventPageState extends State<KontrollEventPage> {
   bool _isLoading = false;
   bool _isSubmitting = false;
   bool _isFree = true;
-  String _selectedKategori = 'Konser'; 
-  List<DocumentSnapshot> _events = []; 
+  String _selectedKategori = 'Konser';
+  List<DocumentSnapshot> _events = [];
   String? _editingId;
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -62,6 +64,7 @@ class KontrollEventPageState extends State<KontrollEventPage> {
   void initState() {
     super.initState();
     _checkAuth();
+    _startPeriodicCheck();
   }
 
   @override
@@ -132,18 +135,22 @@ class KontrollEventPageState extends State<KontrollEventPage> {
   }
 
   void _loadEvents() async {
-    // Changed from _loadDestinasi
     if (_auth.currentUser == null) return;
     setState(() => _isLoading = true);
 
     try {
-      final QuerySnapshot querySnapshot = await FirebaseFirestore.instance
-          .collection('events') // Collection name already correct
-          .orderBy('createdAt', descending: true)
-          .get();
+      // First, check and delete expired events
+      await _checkAndDeleteExpiredEvents();
+
+      // Then load the remaining events
+      final QuerySnapshot querySnapshot =
+          await FirebaseFirestore.instance
+              .collection('events')
+              .orderBy('createdAt', descending: true)
+              .get();
 
       setState(() {
-        _events = querySnapshot.docs; // Renamed from _destinasi
+        _events = querySnapshot.docs;
       });
     } catch (e) {
       _showSnackBar('Error loading event: $e', isError: true);
@@ -152,33 +159,43 @@ class KontrollEventPageState extends State<KontrollEventPage> {
     }
   }
 
-  Future<void> _pickImage() async {
-  try {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      withData: true,
-    );
+  void _cleanupExpiredEvents() async {
+    setState(() => _isLoading = true);
 
-    if (result != null && result.files.isNotEmpty) {
-      setState(() {
-        _selectedImageName = result.files.single.name;
+    await _checkAndDeleteExpiredEvents();
 
-        if (kIsWeb) {
-          _selectedImageBytes = result.files.single.bytes!;
-        } else {
-          _selectedImage = File(result.files.single.path!);
-        }
-      });
-    }
-  } catch (e) {
-    _showSnackBar('Error selecting image: $e', isError: true);
+    setState(() => _isLoading = false);
+
+    _showSnackBar('Expired events cleaned up!', isError: false);
   }
-}
 
+  Future<void> _pickImage() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        withData: true,
+      );
+
+      if (result != null && result.files.isNotEmpty) {
+        setState(() {
+          _selectedImageName = result.files.single.name;
+
+          if (kIsWeb) {
+            _selectedImageBytes = result.files.single.bytes!;
+          } else {
+            _selectedImage = File(result.files.single.path!);
+          }
+        });
+      }
+    } catch (e) {
+      _showSnackBar('Error selecting image: $e', isError: true);
+    }
+  }
 
   Future<String?> _uploadImageToStorage() async {
     try {
-      final filename = 'event_${DateTime.now().millisecondsSinceEpoch}_$_selectedImageName';
+      final filename =
+          'event_${DateTime.now().millisecondsSinceEpoch}_$_selectedImageName';
       final storageRef = FirebaseStorage.instance.ref().child(
         'event_images/$filename',
       );
@@ -209,7 +226,9 @@ class KontrollEventPageState extends State<KontrollEventPage> {
 
     if (!_formKey.currentState!.validate()) return;
 
-    if (_editingId == null && _selectedImage == null && _selectedImageBytes == null) {
+    if (_editingId == null &&
+        _selectedImage == null &&
+        _selectedImageBytes == null) {
       _showSnackBar('Harap pilih gambar terlebih dahulu', isError: true);
       return;
     }
@@ -242,8 +261,14 @@ class KontrollEventPageState extends State<KontrollEventPage> {
 
       if (_editingId != null) {
         data['updatedAt'] = FieldValue.serverTimestamp();
-        await FirebaseFirestore.instance.collection('events').doc(_editingId).update(data);
-        _showSnackBar('Event berhasil diupdate!', isError: false); // Changed text
+        await FirebaseFirestore.instance
+            .collection('events')
+            .doc(_editingId)
+            .update(data);
+        _showSnackBar(
+          'Event berhasil diupdate!',
+          isError: false,
+        ); // Changed text
       } else {
         data['createdAt'] = FieldValue.serverTimestamp();
         await FirebaseFirestore.instance.collection('events').add(data);
@@ -260,6 +285,70 @@ class KontrollEventPageState extends State<KontrollEventPage> {
     }
   }
 
+  void _startPeriodicCheck() {
+    // Check for expired events every hour
+    Timer.periodic(const Duration(hours: 1), (timer) {
+      _checkAndDeleteExpiredEvents();
+    });
+  }
+
+  Future<void> _checkAndDeleteExpiredEvents() async {
+    if (_auth.currentUser == null) return;
+
+    try {
+      final now = DateTime.now();
+      final QuerySnapshot querySnapshot =
+          await FirebaseFirestore.instance.collection('events').get();
+
+      for (var doc in querySnapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final tanggalSelesai = data['tanggalSelesai'] as String?;
+
+        if (tanggalSelesai != null && tanggalSelesai.isNotEmpty) {
+          try {
+            // Parse the date string (assuming DD/MM/YYYY format)
+            final dateParts = tanggalSelesai.split('/');
+            if (dateParts.length == 3) {
+              final day = int.parse(dateParts[0]);
+              final month = int.parse(dateParts[1]);
+              final year = int.parse(dateParts[2]);
+
+              final eventEndDate = DateTime(year, month, day);
+
+              // Check if event has ended (add 1 day to include the end date)
+              if (now.isAfter(eventEndDate.add(const Duration(days: 1)))) {
+                // Delete the event
+                await FirebaseFirestore.instance
+                    .collection('events')
+                    .doc(doc.id)
+                    .delete();
+
+                // Try to delete the image from storage
+                final imageUrl = data['imageUrl'] as String?;
+                if (imageUrl != null && imageUrl.isNotEmpty) {
+                  try {
+                    await FirebaseStorage.instance
+                        .refFromURL(imageUrl)
+                        .delete();
+                  } catch (e) {
+                    // Ignore storage deletion errors
+                    print('Error deleting image: $e');
+                  }
+                }
+
+                print('Deleted expired event: ${data['namaEvent']}');
+              }
+            }
+          } catch (e) {
+            print('Error parsing date for event ${doc.id}: $e');
+          }
+        }
+      }
+    } catch (e) {
+      print('Error checking expired events: $e');
+    }
+  }
+
   void _editEvent(DocumentSnapshot doc) {
     // Renamed from _editDestinasi
     final data = doc.data() as Map<String, dynamic>;
@@ -268,11 +357,15 @@ class KontrollEventPageState extends State<KontrollEventPage> {
       _namaController.text = data['namaEvent'] ?? '';
       _deskripsiController.text = data['deskripsi'] ?? '';
       _lokasiController.text = data['lokasi'] ?? '';
-      _selectedKategori = data['kategori'] ?? 'Konser'; // Default to a more event-centric category
+      _selectedKategori =
+          data['kategori'] ??
+          'Konser'; // Default to a more event-centric category
       _isFree = data['isFree'] ?? true;
       _hargaController.text = data['hargaTiket']?.toString() ?? '0';
-      _tanggalMulaiController.text = data['tanggalMulai'] ?? ''; // Corrected field name
-      _tanggalSelesaiController.text = data['tanggalSelesai'] ?? ''; // Corrected field name
+      _tanggalMulaiController.text =
+          data['tanggalMulai'] ?? ''; // Corrected field name
+      _tanggalSelesaiController.text =
+          data['tanggalSelesai'] ?? ''; // Corrected field name
       _waktuMulaiController.text = data['waktuMulai'] ?? '';
       _waktuSelesaiController.text = data['waktuSelesai'] ?? '';
       _urlMapsController.text = data['urlMaps'] ?? '';
@@ -331,7 +424,10 @@ class KontrollEventPageState extends State<KontrollEventPage> {
 
     if (confirm == true) {
       try {
-        await FirebaseFirestore.instance.collection('events').doc(eventId).delete();
+        await FirebaseFirestore.instance
+            .collection('events')
+            .doc(eventId)
+            .delete();
         try {
           await FirebaseStorage.instance.refFromURL(imageUrl).delete();
         } catch (e) {
@@ -452,40 +548,44 @@ class KontrollEventPageState extends State<KontrollEventPage> {
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(color: Colors.grey.shade300),
                             ),
-                            child: (_selectedImage != null || _selectedImageBytes != null)
-                                ? ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: kIsWeb
-                                        ? Image.memory(
-                                            _selectedImageBytes!,
-                                            fit: BoxFit.cover,
-                                            width: double.infinity,
-                                            height: 150,
-                                          )
-                                        : Image.file(
-                                            _selectedImage!,
-                                            fit: BoxFit.cover,
-                                            width: double.infinity,
-                                            height: 150,
-                                          ),
-                                  )
-                                : Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      const Icon(
-                                        Icons.add_a_photo_rounded,
-                                        size: 40,
-                                        color: Color(0xFF2E7D32),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Tap untuk pilih gambar',
-                                        style: GoogleFonts.poppins(
-                                          color: Colors.grey[600],
+                            child:
+                                (_selectedImage != null ||
+                                        _selectedImageBytes != null)
+                                    ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child:
+                                          kIsWeb
+                                              ? Image.memory(
+                                                _selectedImageBytes!,
+                                                fit: BoxFit.cover,
+                                                width: double.infinity,
+                                                height: 150,
+                                              )
+                                              : Image.file(
+                                                _selectedImage!,
+                                                fit: BoxFit.cover,
+                                                width: double.infinity,
+                                                height: 150,
+                                              ),
+                                    )
+                                    : Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        const Icon(
+                                          Icons.add_a_photo_rounded,
+                                          size: 40,
+                                          color: Color(0xFF2E7D32),
                                         ),
-                                      ),
-                                    ],
-                                  ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Tap untuk pilih gambar',
+                                          style: GoogleFonts.poppins(
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                           ),
                         ),
                         const SizedBox(height: 20),
@@ -494,7 +594,8 @@ class KontrollEventPageState extends State<KontrollEventPage> {
                         _buildTextField(
                           'Nama Event',
                           _namaController,
-                          Icons.event, // Changed icon to a more event-related one
+                          Icons
+                              .event, // Changed icon to a more event-related one
                           'Masukkan nama event',
                         ),
                         const SizedBox(height: 16),
@@ -545,14 +646,15 @@ class KontrollEventPageState extends State<KontrollEventPage> {
                               ),
                             ),
                           ),
-                          items: _categories
-                              .map(
-                                (kategori) => DropdownMenuItem(
-                                  value: kategori,
-                                  child: Text(kategori),
-                                ),
-                              )
-                              .toList(),
+                          items:
+                              _categories
+                                  .map(
+                                    (kategori) => DropdownMenuItem(
+                                      value: kategori,
+                                      child: Text(kategori),
+                                    ),
+                                  )
+                                  .toList(),
                           onChanged: (value) {
                             setState(() => _selectedKategori = value!);
                             setModalState(() => _selectedKategori = value!);
@@ -655,7 +757,10 @@ class KontrollEventPageState extends State<KontrollEventPage> {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed: _isSubmitting ? null : _saveEvent, // Changed to _saveEvent
+                            onPressed:
+                                _isSubmitting
+                                    ? null
+                                    : _saveEvent, // Changed to _saveEvent
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF2E7D32),
                               foregroundColor: Colors.white,
@@ -664,22 +769,25 @@ class KontrollEventPageState extends State<KontrollEventPage> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            child: _isSubmitting
-                                ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2,
+                            child:
+                                _isSubmitting
+                                    ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                    : Text(
+                                      _editingId != null
+                                          ? 'UPDATE EVENT'
+                                          : 'TAMBAH EVENT', // Changed text
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
-                                  )
-                                : Text(
-                                    _editingId != null ? 'UPDATE EVENT' : 'TAMBAH EVENT', // Changed text
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
                           ),
                         ),
                       ],
@@ -780,7 +888,7 @@ class KontrollEventPageState extends State<KontrollEventPage> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Kelola Event', // Changed text
+          'Kelola Event',
           style: GoogleFonts.poppins(
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -788,12 +896,21 @@ class KontrollEventPageState extends State<KontrollEventPage> {
           ),
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.cleaning_services, color: Color(0xFF2E7D32)),
+            onPressed: _cleanupExpiredEvents,
+            tooltip: 'Cleanup Expired Events',
+          ),
+        ],
       ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF2E7D32)),
-            )
-          : _events.isEmpty // Renamed from _destinasi
+      body:
+          _isLoading
+              ? const Center(
+                child: CircularProgressIndicator(color: Color(0xFF2E7D32)),
+              )
+              : _events
+                  .isEmpty // Renamed from _destinasi
               ? _buildEmptyState()
               : _buildEventList(), // Renamed from _buildDestinasiList
       floatingActionButton: FloatingActionButton.extended(
@@ -819,7 +936,11 @@ class KontrollEventPageState extends State<KontrollEventPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.event_note, size: 80, color: Colors.grey[400]), // Changed icon
+          Icon(
+            Icons.event_note,
+            size: 80,
+            color: Colors.grey[400],
+          ), // Changed icon
           const SizedBox(height: 16),
           Text(
             'Belum ada event', // Changed text
@@ -901,7 +1022,8 @@ class KontrollEventPageState extends State<KontrollEventPage> {
                         children: [
                           Expanded(
                             child: Text(
-                              data['namaEvent'] ?? 'No Name', // Changed to namaEvent
+                              data['namaEvent'] ??
+                                  'No Name', // Changed to namaEvent
                               style: GoogleFonts.poppins(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
@@ -919,42 +1041,43 @@ class KontrollEventPageState extends State<KontrollEventPage> {
                                 );
                               }
                             },
-                            itemBuilder: (context) => [
-                              PopupMenuItem(
-                                value: 'edit',
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.edit_outlined,
-                                      color: Color(0xFF2E7D32),
+                            itemBuilder:
+                                (context) => [
+                                  PopupMenuItem(
+                                    value: 'edit',
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.edit_outlined,
+                                          color: Color(0xFF2E7D32),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Edit',
+                                          style: GoogleFonts.poppins(),
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Edit',
-                                      style: GoogleFonts.poppins(),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.delete_outline,
+                                          color: Colors.red,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Hapus',
+                                          style: GoogleFonts.poppins(
+                                            color: Colors.red,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ],
-                                ),
-                              ),
-                              PopupMenuItem(
-                                value: 'delete',
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.delete_outline,
-                                      color: Colors.red,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Hapus',
-                                      style: GoogleFonts.poppins(
-                                        color: Colors.red,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
+                                  ),
+                                ],
                           ),
                         ],
                       ),
@@ -1016,9 +1139,10 @@ class KontrollEventPageState extends State<KontrollEventPage> {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: (data['isFree'] ?? true)
-                                  ? Colors.green.shade100
-                                  : Colors.orange.shade100,
+                              color:
+                                  (data['isFree'] ?? true)
+                                      ? Colors.green.shade100
+                                      : Colors.orange.shade100,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
@@ -1028,9 +1152,10 @@ class KontrollEventPageState extends State<KontrollEventPage> {
                               style: GoogleFonts.poppins(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
-                                color: (data['isFree'] ?? true)
-                                    ? Colors.green.shade700
-                                    : Colors.orange.shade700,
+                                color:
+                                    (data['isFree'] ?? true)
+                                        ? Colors.green.shade700
+                                        : Colors.orange.shade700,
                               ),
                             ),
                           ),

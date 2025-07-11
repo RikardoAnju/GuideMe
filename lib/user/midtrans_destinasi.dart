@@ -14,7 +14,7 @@ class MidtransPage extends StatefulWidget {
   final Map<String, dynamic> destinasiData;
   final String destinasiId;
   final Map<String, dynamic> currentUserData;
-  
+
   // Tambahan parameter untuk menentukan destinasi
   final Widget? successDestination;
   final Widget? failureDestination;
@@ -49,10 +49,12 @@ class MidtransPageState extends State<MidtransPage> {
   bool _paymentProcessed = false;
   bool _isCheckingStatus = false;
 
-  static const String _backendUrl = "https://payment-backend.glitch.me/generate-snap-token";
-  static const String _statusCheckUrl = "https://payment-backend.glitch.me/check-payment-status";
+  static const String _backendUrl =
+      "https://midtrans-backend.rikardoanju1110.repl.co/generate-snap-token";
 
-  // Method untuk mendapatkan destinasi yang tepat
+  static const String _statusCheckUrl =
+      "https://midtrans-backend.rikardoanju1110.repl.co/check-payment-status";
+
   Widget _getDestination(String type) {
     switch (type) {
       case 'success':
@@ -79,7 +81,10 @@ class MidtransPageState extends State<MidtransPage> {
   }
 
   // Simplified payment status check
-  Future<void> checkPaymentStatus(String orderId, {bool isManualCheck = false}) async {
+  Future<void> checkPaymentStatus(
+    String orderId, {
+    bool isManualCheck = false,
+  }) async {
     if (_paymentProcessed && !isManualCheck) return;
 
     try {
@@ -91,33 +96,47 @@ class MidtransPageState extends State<MidtransPage> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
+
         if (data['success'] == true) {
           final status = data['status'];
           final transactionStatus = data['transaction_status'];
 
           // Success statuses
-          if (status == 'success' || status == 'capture' || status == 'settlement' ||
-              transactionStatus == 'success' || transactionStatus == 'capture' || 
+          if (status == 'success' ||
+              status == 'capture' ||
+              status == 'settlement' ||
+              transactionStatus == 'success' ||
+              transactionStatus == 'capture' ||
               data['can_navigate_home'] == true) {
             await _handleSuccessPayment();
           }
           // Failed statuses
-          else if (status == 'cancel' || status == 'deny' || status == 'expire' || 
-                   status == 'failure' || transactionStatus == 'cancel' || 
-                   transactionStatus == 'deny' || transactionStatus == 'expire' || 
-                   transactionStatus == 'failure') {
+          else if (status == 'cancel' ||
+              status == 'deny' ||
+              status == 'expire' ||
+              status == 'failure' ||
+              transactionStatus == 'cancel' ||
+              transactionStatus == 'deny' ||
+              transactionStatus == 'expire' ||
+              transactionStatus == 'failure') {
             await _handleFailedPayment();
           }
           // Pending status
-          else if (isManualCheck && (status == 'pending' || transactionStatus == 'pending')) {
-            _showMessage('Pembayaran masih dalam proses. Silakan tunggu beberapa saat lagi.', false);
+          else if (isManualCheck &&
+              (status == 'pending' || transactionStatus == 'pending')) {
+            _showMessage(
+              'Pembayaran masih dalam proses. Silakan tunggu beberapa saat lagi.',
+              false,
+            );
           }
         }
       }
     } catch (e) {
       if (isManualCheck) {
-        _showMessage('Gagal memeriksa status pembayaran. Silakan coba lagi.', false);
+        _showMessage(
+          'Gagal memeriksa status pembayaran. Silakan coba lagi.',
+          false,
+        );
       }
     }
   }
@@ -125,14 +144,19 @@ class MidtransPageState extends State<MidtransPage> {
   // Simplified message display
   void _showMessage(String message, bool isSuccess) {
     if (!mounted) return;
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
-            Icon(isSuccess ? Icons.check_circle : Icons.info, color: Colors.white),
+            Icon(
+              isSuccess ? Icons.check_circle : Icons.info,
+              color: Colors.white,
+            ),
             const SizedBox(width: 12),
-            Expanded(child: Text(message, style: const TextStyle(color: Colors.white))),
+            Expanded(
+              child: Text(message, style: const TextStyle(color: Colors.white)),
+            ),
           ],
         ),
         backgroundColor: isSuccess ? Colors.green : Colors.orange,
@@ -154,8 +178,10 @@ class MidtransPageState extends State<MidtransPage> {
   void _handlePaymentCallback(String url) {
     if (_paymentProcessed) return;
 
-    if (url.contains('finish') || url.contains('success') || 
-        url.contains('payment-finish') || url.contains('payment-success')) {
+    if (url.contains('finish') ||
+        url.contains('success') ||
+        url.contains('payment-finish') ||
+        url.contains('payment-success')) {
       Future.delayed(const Duration(seconds: 3), () {
         if (!_paymentProcessed && mounted) {
           checkPaymentStatus(widget.orderId);
@@ -179,7 +205,7 @@ class MidtransPageState extends State<MidtransPage> {
     _navigateToDestination(
       'success',
       'Pembayaran berhasil! Tiket Anda telah dikonfirmasi.',
-      true
+      true,
     );
   }
 
@@ -198,16 +224,16 @@ class MidtransPageState extends State<MidtransPage> {
     _navigateToDestination(
       'failure',
       'Pembayaran dibatalkan atau gagal. Silakan coba lagi.',
-      false
+      false,
     );
   }
 
   // Enhanced cancel payment method - Updated with flexible destination
   Future<void> _cancelPayment() async {
     if (_paymentProcessed) return;
-    
+
     debugPrint('Starting payment cancellation...');
-    
+
     try {
       _paymentProcessed = true;
       _statusTimer?.cancel();
@@ -241,7 +267,10 @@ class MidtransPageState extends State<MidtransPage> {
                     Expanded(
                       child: Text(
                         'Pembayaran dibatalkan. Anda dapat mencoba lagi kapan saja.',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ],
@@ -249,7 +278,9 @@ class MidtransPageState extends State<MidtransPage> {
                 backgroundColor: Colors.orange,
                 duration: const Duration(seconds: 4),
                 behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
             );
           }
@@ -257,7 +288,7 @@ class MidtransPageState extends State<MidtransPage> {
       }
     } catch (e) {
       debugPrint('Error in _cancelPayment: $e');
-      
+
       // Force navigation even if there's an error
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
@@ -271,13 +302,16 @@ class MidtransPageState extends State<MidtransPage> {
   // Update payment status in Firebase
   Future<void> _updatePaymentStatus(String status) async {
     try {
-      final docRef = FirebaseFirestore.instance.collection('payments').doc(widget.orderId);
-      
+      final docRef = FirebaseFirestore.instance
+          .collection('payments')
+          .doc(widget.orderId);
+
       Map<String, dynamic> paymentData = {
         'status': status,
         'updatedAt': FieldValue.serverTimestamp(),
         'transactionStatus': status,
-        'isPaid': status == 'succes' || status == 'success' || status == 'capture',
+        'isPaid':
+            status == 'succes' || status == 'success' || status == 'capture',
         'isCancelled': status == 'cancel',
         'paymentMethod': 'midtrans',
       };
@@ -315,7 +349,8 @@ class MidtransPageState extends State<MidtransPage> {
       if (snapToken == null) throw 'Gagal mendapatkan token pembayaran';
 
       setState(() {
-        _paymentUrl = 'https://app.sandbox.midtrans.com/snap/v2/vtweb/$snapToken';
+        _paymentUrl =
+            'https://app.sandbox.midtrans.com/snap/v2/vtweb/$snapToken';
         _isLoading = false;
       });
 
@@ -333,7 +368,11 @@ class MidtransPageState extends State<MidtransPage> {
   }
 
   // Navigate to destination with message - Updated method
-  void _navigateToDestination(String destinationType, String message, bool isSuccess) {
+  void _navigateToDestination(
+    String destinationType,
+    String message,
+    bool isSuccess,
+  ) {
     if (!mounted) return;
 
     final destination = _getDestination(destinationType);
@@ -348,9 +387,17 @@ class MidtransPageState extends State<MidtransPage> {
         SnackBar(
           content: Row(
             children: [
-              Icon(isSuccess ? Icons.check_circle : Icons.error, color: Colors.white),
+              Icon(
+                isSuccess ? Icons.check_circle : Icons.error,
+                color: Colors.white,
+              ),
               const SizedBox(width: 12),
-              Expanded(child: Text(message, style: const TextStyle(color: Colors.white))),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ),
             ],
           ),
           backgroundColor: isSuccess ? Colors.green : Colors.red,
@@ -379,16 +426,19 @@ class MidtransPageState extends State<MidtransPage> {
           'email': widget.currentUserData['email'] ?? currentUser.email ?? '',
           'phone': widget.currentUserData['phoneNumber'] ?? '',
         },
-        'item_details': [{
-          'id': widget.destinasiId,
-          'price': (widget.destinasiData['hargaTiket'] ?? 0).toInt(),
-          'quantity': widget.ticketQuantity,
-          'name': widget.destinasiData['namaDestinasi'] ?? 'Destinasi Ticket',
-          'category': widget.destinasiData['kategori'] ?? 'Destinasi',
-        }],
+        'item_details': [
+          {
+            'id': widget.destinasiId,
+            'price': (widget.destinasiData['hargaTiket'] ?? 0).toInt(),
+            'quantity': widget.ticketQuantity,
+            'name': widget.destinasiData['namaDestinasi'] ?? 'Destinasi Ticket',
+            'category': widget.destinasiData['kategori'] ?? 'Destinasi',
+          },
+        ],
         'destinasi_details': {
           'destinasi_id': widget.destinasiId,
-          'destinasi_name': widget.destinasiData['namaDestinasi'] ?? 'Destinasi Ticket',
+          'destinasi_name':
+              widget.destinasiData['namaDestinasi'] ?? 'Destinasi Ticket',
         },
         'buyer_details': {'user_id': currentUser.uid},
       };
@@ -438,7 +488,9 @@ class MidtransPageState extends State<MidtransPage> {
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           title: const Row(
             children: [
               Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 24),
@@ -463,7 +515,10 @@ class MidtransPageState extends State<MidtransPage> {
                 Navigator.of(dialogContext).pop(); // Tutup modal
               },
               style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
               ),
               child: const Text(
                 'Tidak',
@@ -483,8 +538,13 @@ class MidtransPageState extends State<MidtransPage> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
               child: const Text(
                 'Ya, Batalkan',
@@ -514,7 +574,10 @@ class MidtransPageState extends State<MidtransPage> {
       child: Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(
-          title: const Text('Pembayaran', style: TextStyle(fontWeight: FontWeight.w600)),
+          title: const Text(
+            'Pembayaran',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
           backgroundColor: const Color(0xFF4CAF50),
           foregroundColor: Colors.white,
           leading: IconButton(
@@ -536,12 +599,17 @@ class MidtransPageState extends State<MidtransPage> {
               ),
             if (_webViewReady && !_isLoading && !_paymentProcessed)
               IconButton(
-                icon: _isCheckingStatus 
-                  ? const SizedBox(
-                      width: 20, height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Icon(Icons.refresh_outlined),
+                icon:
+                    _isCheckingStatus
+                        ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                        : const Icon(Icons.refresh_outlined),
                 onPressed: _isCheckingStatus ? null : _manualStatusCheck,
                 tooltip: 'Cek Status',
               ),
@@ -591,7 +659,9 @@ class MidtransPageState extends State<MidtransPage> {
               setState(() => _progress = progress / 100);
             },
             onReceivedError: (controller, request, error) {
-              _setError('Gagal memuat halaman pembayaran: ${error.description}');
+              _setError(
+                'Gagal memuat halaman pembayaran: ${error.description}',
+              );
             },
           ),
         ),
@@ -608,19 +678,31 @@ class MidtransPageState extends State<MidtransPage> {
           children: [
             const Icon(Icons.error_outline, size: 48, color: Colors.red),
             const SizedBox(height: 24),
-            const Text('Oops! Terjadi Kesalahan', 
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            const Text(
+              'Oops! Terjadi Kesalahan',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 12),
-            Text(_errorMessage!, textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16, color: Colors.grey)),
+            Text(
+              _errorMessage!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 16, color: Colors.grey),
+            ),
             const SizedBox(height: 32),
             Row(
               children: [
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () => Navigator.pushReplacement(
-                      context, MaterialPageRoute(builder: (context) => _getDestination('failure'))),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.grey[300]),
+                    onPressed:
+                        () => Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => _getDestination('failure'),
+                          ),
+                        ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey[300],
+                    ),
                     child: const Text('Kembali'),
                   ),
                 ),
@@ -628,8 +710,13 @@ class MidtransPageState extends State<MidtransPage> {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: _refreshPayment,
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4CAF50)),
-                    child: const Text('Coba Lagi', style: TextStyle(color: Colors.white)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4CAF50),
+                    ),
+                    child: const Text(
+                      'Coba Lagi',
+                      style: TextStyle(color: Colors.white),
+                    ),
                   ),
                 ),
               ],
@@ -647,11 +734,15 @@ class MidtransPageState extends State<MidtransPage> {
         children: [
           CircularProgressIndicator(color: Color(0xFF4CAF50)),
           SizedBox(height: 24),
-          Text('Memuat Halaman Pembayaran', 
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+          Text(
+            'Memuat Halaman Pembayaran',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+          ),
           SizedBox(height: 8),
-          Text('Mohon tunggu sebentar...', 
-            style: TextStyle(fontSize: 14, color: Colors.grey)),
+          Text(
+            'Mohon tunggu sebentar...',
+            style: TextStyle(fontSize: 14, color: Colors.grey),
+          ),
         ],
       ),
     );

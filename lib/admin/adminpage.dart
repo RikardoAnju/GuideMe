@@ -10,7 +10,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../notifikasi_widget.dart';
 import 'laporan.dart';
 import '../services/notifikasiadmin_service.dart';
-
+import 'package:badges/badges.dart' as badges;
 
 class AdminPage extends StatefulWidget {
   const AdminPage({super.key});
@@ -58,7 +58,7 @@ class AdminPageState extends State<AdminPage>
     super.initState();
 
     // Inisialisasi login dan data pengguna
-    _checkLoginStatus();
+
     _checkUserRole();
     fetchUserData();
 
@@ -80,10 +80,9 @@ class AdminPageState extends State<AdminPage>
       User? user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      // Query unread notifications from Firestore
       final QuerySnapshot snapshot =
           await FirebaseFirestore.instance
-              .collection('notifications')
+              .collection('admin_notifications')
               .where('isRead', isEqualTo: false)
               .get();
 
@@ -94,9 +93,11 @@ class AdminPageState extends State<AdminPage>
         });
       }
 
-      // Set up listener for real-time updates
+      // Set up listener for real-time updates - gunakan nama koleksi yang sama
       FirebaseFirestore.instance
-          .collection('notifications')
+          .collection(
+            'admin_notifications',
+          ) // Ubah dari 'notifications' ke 'admin_notifications'
           .where('isRead', isEqualTo: false)
           .snapshots()
           .listen((snapshot) {
@@ -108,28 +109,6 @@ class AdminPageState extends State<AdminPage>
           });
     } catch (e) {
       debugPrint('Error fetching notification count: $e');
-    }
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _checkLoginStatus() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      setState(() {
-        isLoggedIn = false;
-        isLoadingRole = false;
-      });
-    } else {
-      setState(() {
-        isLoggedIn = true;
-      });
-      _checkUserRole();
-      fetchUserData();
     }
   }
 
@@ -274,10 +253,6 @@ class AdminPageState extends State<AdminPage>
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      'admin@example.com',
-                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                    ),
                   ],
                 ),
               ),
@@ -308,7 +283,7 @@ class AdminPageState extends State<AdminPage>
                           );
                         },
                       ),
-                  
+
                       _buildDrawerItem(
                         icon: Icons.analytics,
                         title: 'Laporan',

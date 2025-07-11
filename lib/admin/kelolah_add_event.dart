@@ -65,6 +65,38 @@ class _KelolahAddEventPageState extends State<KelolahAddEventPage> {
     }
   }
 
+  // Method untuk membuat notifikasi
+  Future<void> _sendNotification({
+    required String userId,
+    required String eventName,
+    required String type, // 'approved' atau 'rejected'
+  }) async {
+    try {
+      String title;
+      String message;
+      
+      if (type == 'approved') {
+        title = 'Event Disetujui!';
+        message = 'Event "$eventName" Anda telah disetujui dan akan segera ditampilkan di aplikasi.';
+      } else {
+        title = 'Event Ditolak';
+        message = 'Event "$eventName" Anda telah ditolak. Silakan hubungi admin untuk informasi lebih lanjut.';
+      }
+
+      await FirebaseFirestore.instance.collection('notifications').add({
+        'userId': userId,
+        'title': title,
+        'message': message,
+        'type': type,
+        'eventName': eventName,
+        'isRead': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('Error sending notification: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -557,10 +589,17 @@ class _KelolahAddEventPageState extends State<KelolahAddEventPage> {
 
       await batch.commit();
 
+      // Kirim notifikasi ke pengguna
+      await _sendNotification(
+        userId: request.userId,
+        eventName: request.namaEvent,
+        type: 'approved',
+      );
+
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Event berhasil disetujui'),
+          content: Text('Event berhasil disetujui dan notifikasi telah dikirim'),
           backgroundColor: Colors.green,
         ),
       );
@@ -575,6 +614,13 @@ class _KelolahAddEventPageState extends State<KelolahAddEventPage> {
 
   Future<void> _rejectEvent(EventRequest request) async {
     try {
+      // Kirim notifikasi sebelum menghapus
+      await _sendNotification(
+        userId: request.userId,
+        eventName: request.namaEvent,
+        type: 'rejected',
+      );
+
       await FirebaseFirestore.instance
           .collection('event_requests')
           .doc(request.id)
@@ -583,7 +629,7 @@ class _KelolahAddEventPageState extends State<KelolahAddEventPage> {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Event berhasil ditolak dan dihapus'),
+          content: Text('Event berhasil ditolak dan notifikasi telah dikirim'),
           backgroundColor: Colors.orange,
         ),
       );

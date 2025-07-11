@@ -583,8 +583,8 @@ class _KelolahFeedbackPageState extends State<KelolahFeedbackPage> {
             'respondedAt': FieldValue.serverTimestamp(),
           });
 
-      // Kirim notifikasi ke user
-      await FirebaseFirestore.instance.collection('notifications').add({
+      // Kirim notifikasi ke user dengan koleksi notifications_feedback
+      await FirebaseFirestore.instance.collection('notifications_feedback').add({
         'userId': request.userId,
         'title': 'Balasan Admin - ${request.category}',
         'message': 'Admin telah membalas feedback Anda: $message',
@@ -595,6 +595,8 @@ class _KelolahFeedbackPageState extends State<KelolahFeedbackPage> {
         'data': {
           'feedbackCategory': request.category,
           'adminReply': message,
+          'originalFeedback': request.message,
+          'adminReplyAt': FieldValue.serverTimestamp(),
         },
       });
 
@@ -627,8 +629,8 @@ class _KelolahFeedbackPageState extends State<KelolahFeedbackPage> {
             'resolvedAt': FieldValue.serverTimestamp(),
           });
 
-      // Kirim notifikasi resolved ke user
-      await FirebaseFirestore.instance.collection('notifications').add({
+      // Kirim notifikasi resolved ke user dengan koleksi notifications_feedback
+      await FirebaseFirestore.instance.collection('notifications_feedback').add({
         'userId': request.userId,
         'title': 'Feedback Diselesaikan - ${request.category}',
         'message': 'Feedback Anda telah diselesaikan oleh admin.',
@@ -638,6 +640,7 @@ class _KelolahFeedbackPageState extends State<KelolahFeedbackPage> {
         'isRead': false,
         'data': {
           'feedbackCategory': request.category,
+          'resolvedAt': FieldValue.serverTimestamp(),
         },
       });
 

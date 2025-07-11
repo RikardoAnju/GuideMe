@@ -1,28 +1,17 @@
 {
-  "name": "mailersend-proxy",
+  "name": "payment-backend-vercel",
   "version": "1.0.0",
-  "description": "Backend server for MailerSend and Midtrans integration",
-  "main": "index.js",
+  "description": "Payment backend for Vercel with Midtrans integration",
+  "main": "api/index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node api/index.js",
+    "dev": "vercel dev"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "axios": "^1.8.4",
-    "body-parser": "^2.2.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.7",
-    "express": "^5.1.0",
-    "midtrans-client": "^1.3.1"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.1"
+    "axios": "^1.6.0",
+    "firebase-admin": "^12.0.0"
   },
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=18"
   }
 }

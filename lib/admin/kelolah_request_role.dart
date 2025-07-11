@@ -916,7 +916,7 @@ class _KelolahRoleRequestsPageState extends State<KelolahRoleRequestsPage> {
         'userId': request.userId,
         'title': 'Permintaan Owner Ditolak',
         'message': 'Maaf, permintaan owner untuk "${request.destinationName}" telah ditolak.',
-        'timestamp': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
         'read': false,
         'type': 'owner_rejection',
       });
