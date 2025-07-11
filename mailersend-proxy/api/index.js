@@ -20,6 +20,7 @@ function initFirebase() {
       
       if (missingVars.length > 0) {
         console.warn(`⚠️ Missing Firebase environment variables: ${missingVars.join(', ')}`);
+        firebaseEnabled = false;
         return;
       }
 
@@ -88,7 +89,7 @@ async function checkMidtransStatus(orderId) {
           Authorization: `Basic ${encodedKey}`,
           "Content-Type": "application/json",
         },
-        timeout: 10000, // 10 second timeout
+        timeout: 15000, // 15 second timeout
       }
     );
     
@@ -99,15 +100,21 @@ async function checkMidtransStatus(orderId) {
   }
 }
 
-// CORS headers
-function setCorsHeaders(res) {
+// CORS headers with proper origin handling
+function setCorsHeaders(req, res) {
+  const origin = req.headers.origin;
   const allowedOrigins = process.env.ALLOWED_ORIGINS 
-    ? process.env.ALLOWED_ORIGINS.split(',') 
+    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
     : ['*'];
   
-  res.setHeader('Access-Control-Allow-Origin', allowedOrigins[0]);
+  // Check if origin is allowed
+  if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  }
+  
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Max-Age', '86400');
 }
 
@@ -121,11 +128,57 @@ function validateEnvironment() {
   }
 }
 
+// Input validation helpers
+function validateEmail(email) {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+function validateOrderId(orderId) {
+  // Allow alphanumeric, hyphens, underscores, and dots
+  return /^[a-zA-Z0-9_.-]+$/.test(orderId);
+}
+
+function sanitizeInput(input) {
+  if (typeof input !== 'string') return input;
+  return input.trim();
+}
+
+// Enhanced error handler
+function handleError(error, res, context = '') {
+  console.error(`❌ Error in ${context}:`, error);
+  
+  // Check if it's a known error type
+  if (error.response?.status === 404) {
+    return res.status(404).json({
+      success: false,
+      message: "Resource not found",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+  
+  if (error.response?.status === 401) {
+    return res.status(401).json({
+      success: false,
+      message: "Unauthorized",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+  
+  return res.status(500).json({
+    success: false,
+    message: "Internal server error",
+    error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
+  });
+}
+
 // Main handler
 export default async function handler(req, res) {
   try {
-    setCorsHeaders(res);
+    // Set CORS headers
+    setCorsHeaders(req, res);
     
+    // Handle preflight requests
     if (req.method === 'OPTIONS') {
       return res.status(200).end();
     }
@@ -136,43 +189,51 @@ export default async function handler(req, res) {
     // Initialize Firebase
     initFirebase();
 
-    const { method, url } = req;
-    const path = url.split('?')[0];
+    const { method } = req;
+    const path = req.url?.split('?')[0] || '/';
 
     console.log(`📝 ${method} ${path} - ${new Date().toISOString()}`);
 
     // Root endpoint
     if (method === 'GET' && path === '/') {
       return res.json({
-        message: "Payment Backend Server - Vercel Version",
-        version: "1.0.0",
+        message: "Payment Backend Server - Vercel Edition",
+        version: "1.1.0",
+        status: "active",
         firebase_enabled: firebaseEnabled,
         environment: process.env.NODE_ENV || 'development',
-        endpoints: [
-          "POST /reset - Send OTP email",
-          "POST /generate-snap-token - Create payment",
-          "POST /midtrans-webhook - Payment webhook",
-          "GET /payment-finish - Payment redirect",
-          "GET /payment-status/:orderId - Check status",
-          "GET /health - Health check"
-        ],
+        timestamp: new Date().toISOString(),
+        endpoints: {
+          "GET /": "API Information",
+          "GET /health": "Health Check",
+          "POST /reset": "Send OTP Email",
+          "POST /generate-snap-token": "Create Payment Token",
+          "POST /midtrans-webhook": "Payment Webhook Handler",
+          "GET /payment-status/:orderId": "Check Payment Status"
+        }
       });
     }
 
-    // Health check
+    // Health check endpoint
     if (method === 'GET' && path === '/health') {
       return res.json({
-        status: "OK",
-        firebase_enabled: firebaseEnabled,
+        status: "healthy",
+        services: {
+          firebase: firebaseEnabled,
+          midtrans: !!process.env.MIDTRANS_SERVER_KEY,
+          mailersend: !!process.env.MAILERSEND_API_KEY
+        },
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
+        memory: process.memoryUsage()
       });
     }
 
-    // Send OTP email
+    // Send OTP email endpoint
     if (method === 'POST' && path === '/reset') {
       const { from, to, subject, html } = req.body;
 
+      // Validate required fields
       if (!from || !to || !subject || !html) {
         return res.status(400).json({ 
           success: false,
@@ -180,6 +241,15 @@ export default async function handler(req, res) {
         });
       }
 
+      // Validate email format
+      if (!validateEmail(from) || !validateEmail(to)) {
+        return res.status(400).json({ 
+          success: false,
+          message: "Invalid email format" 
+        });
+      }
+
+      // Check if email service is configured
       if (!process.env.MAILERSEND_API_KEY) {
         return res.status(500).json({ 
           success: false,
@@ -191,17 +261,17 @@ export default async function handler(req, res) {
         await axios.post(
           "https://api.mailersend.com/v1/email",
           {
-            from: { email: from },
-            to: [{ email: to }],
-            subject,
-            html,
+            from: { email: sanitizeInput(from) },
+            to: [{ email: sanitizeInput(to) }],
+            subject: sanitizeInput(subject),
+            html: html,
           },
           {
             headers: {
               "Content-Type": "application/json",
               Authorization: `Bearer ${process.env.MAILERSEND_API_KEY}`,
             },
-            timeout: 15000,
+            timeout: 20000,
           }
         );
 
@@ -210,7 +280,7 @@ export default async function handler(req, res) {
           message: "Email sent successfully" 
         });
       } catch (error) {
-        console.error("Email error:", error.response?.data || error.message);
+        console.error("Email sending error:", error.response?.data || error.message);
         return res.status(500).json({ 
           success: false,
           message: "Failed to send email",
@@ -219,10 +289,11 @@ export default async function handler(req, res) {
       }
     }
 
-    // Generate payment token
+    // Generate payment token endpoint
     if (method === 'POST' && path === '/generate-snap-token') {
       const { order_id, gross_amount, customer_details, item_details, payment_type } = req.body;
 
+      // Validate required fields
       if (!order_id || !gross_amount || !customer_details || !item_details) {
         return res.status(400).json({ 
           success: false,
@@ -231,36 +302,52 @@ export default async function handler(req, res) {
       }
 
       // Validate order_id format
-      if (!/^[a-zA-Z0-9_-]+$/.test(order_id)) {
+      if (!validateOrderId(order_id)) {
         return res.status(400).json({ 
           success: false,
-          message: "Invalid order_id format. Only alphanumeric characters, hyphens, and underscores are allowed." 
+          message: "Invalid order_id format. Only alphanumeric characters, hyphens, underscores, and dots are allowed." 
+        });
+      }
+
+      // Validate amount
+      const amount = parseInt(gross_amount);
+      if (isNaN(amount) || amount < 0) {
+        return res.status(400).json({ 
+          success: false,
+          message: "Invalid gross_amount. Must be a valid positive number." 
+        });
+      }
+
+      // Validate customer email if provided
+      if (customer_details.email && !validateEmail(customer_details.email)) {
+        return res.status(400).json({ 
+          success: false,
+          message: "Invalid customer email format" 
         });
       }
 
       const serverKey = process.env.MIDTRANS_SERVER_KEY;
       const encodedKey = Buffer.from(serverKey + ":").toString("base64");
 
+      // Build transaction data
       const transactionData = {
         transaction_details: { 
-          order_id, 
-          gross_amount: parseInt(gross_amount) 
+          order_id: sanitizeInput(order_id), 
+          gross_amount: amount 
         },
         customer_details: {
-          first_name: customer_details.first_name || "Customer",
-          email: customer_details.email || "",
-          phone: customer_details.phone || "",
+          first_name: sanitizeInput(customer_details.first_name) || "Customer",
+          last_name: sanitizeInput(customer_details.last_name) || "",
+          email: sanitizeInput(customer_details.email) || "",
+          phone: sanitizeInput(customer_details.phone) || "",
         },
         item_details: item_details.map(item => ({
-          id: item.id,
+          id: sanitizeInput(item.id),
           price: parseInt(item.price),
           quantity: parseInt(item.quantity),
-          name: item.name,
+          name: sanitizeInput(item.name),
         })),
-        credit_card: { secure: true },
-        callbacks: {
-          finish: `${process.env.FRONTEND_URL || 'https://yourapp.com'}/payment-finish?order_id=${order_id}`,
-        }
+        credit_card: { secure: true }
       };
 
       try {
@@ -276,7 +363,7 @@ export default async function handler(req, res) {
               "Content-Type": "application/json",
               Authorization: `Basic ${encodedKey}`,
             },
-            timeout: 15000,
+            timeout: 20000,
           }
         );
 
@@ -284,40 +371,44 @@ export default async function handler(req, res) {
         if (firebaseEnabled) {
           try {
             const paymentData = {
-              order_id,
+              order_id: sanitizeInput(order_id),
               status: "pending",
               is_paid: false,
-              gross_amount: parseInt(gross_amount),
-              customer_details,
+              gross_amount: amount,
+              customer_details: {
+                first_name: sanitizeInput(customer_details.first_name) || "Customer",
+                last_name: sanitizeInput(customer_details.last_name) || "",
+                email: sanitizeInput(customer_details.email) || "",
+                phone: sanitizeInput(customer_details.phone) || "",
+              },
               item_details,
               payment_type: payment_type || 'general',
               snap_token: response.data.token,
               transaction_status: "pending",
               created_at: admin.firestore.FieldValue.serverTimestamp(),
-              createdAt: admin.firestore.FieldValue.serverTimestamp(),
-              timestamp: admin.firestore.FieldValue.serverTimestamp(),
-              // Handle both event and destination payments
+              updated_at: admin.firestore.FieldValue.serverTimestamp(),
+              // Handle specific payment types
               ...(payment_type === 'event' && {
                 userId: customer_details.userId,
                 eventId: customer_details.eventId,
                 eventName: customer_details.eventName,
                 eventData: customer_details.eventData,
-                userEmail: customer_details.email,
-                userName: customer_details.first_name,
+                userEmail: sanitizeInput(customer_details.email),
+                userName: sanitizeInput(customer_details.first_name),
                 quantity: item_details[0]?.quantity || 1,
-                totalAmount: parseInt(gross_amount),
-                isFree: parseInt(gross_amount) === 0
+                totalAmount: amount,
+                isFree: amount === 0
               }),
               ...(payment_type === 'destination' && {
                 userId: customer_details.userId,
                 destinasiId: customer_details.destinasiId,
                 destinasiName: customer_details.destinasiName,
                 destinasiData: customer_details.destinasiData,
-                userEmail: customer_details.email,
-                userName: customer_details.first_name,
+                userEmail: sanitizeInput(customer_details.email),
+                userName: sanitizeInput(customer_details.first_name),
                 quantity: item_details[0]?.quantity || 1,
-                totalAmount: parseInt(gross_amount),
-                isFree: parseInt(gross_amount) === 0
+                totalAmount: amount,
+                isFree: amount === 0
               })
             };
 
@@ -333,10 +424,12 @@ export default async function handler(req, res) {
           success: true,
           snap_token: response.data.token,
           redirect_url: response.data.redirect_url,
-          order_id
+          order_id: order_id,
+          gross_amount: amount
         });
+
       } catch (error) {
-        console.error("Payment token error:", error.response?.data || error.message);
+        console.error("Payment token generation error:", error.response?.data || error.message);
         return res.status(500).json({ 
           success: false,
           message: "Failed to generate payment token",
@@ -345,10 +438,11 @@ export default async function handler(req, res) {
       }
     }
 
-    // Midtrans webhook
+    // Midtrans webhook endpoint
     if (method === 'POST' && path === '/midtrans-webhook') {
       const { order_id, status_code, gross_amount, signature_key, transaction_status } = req.body;
 
+      // Validate required webhook fields
       if (!order_id || !status_code || !gross_amount || !signature_key) {
         return res.status(400).json({ 
           success: false,
@@ -389,6 +483,8 @@ export default async function handler(req, res) {
               updated_at: admin.firestore.FieldValue.serverTimestamp(),
             });
             console.log(`💾 Webhook updated ${order_id}: ${statusInfo.status}, isPaid: ${statusInfo.isPaid}`);
+          } else {
+            console.log(`⚠️ No payment record found for ${order_id}`);
           }
         } catch (firebaseError) {
           console.error("Firebase update error:", firebaseError.message);
@@ -403,108 +499,16 @@ export default async function handler(req, res) {
       });
     }
 
-    // Payment finish redirect
+    // Payment finish redirect endpoint
     if (method === 'GET' && path === '/payment-finish') {
-      const { order_id, status_code, transaction_status } = req.query;
-      
-      if (!order_id) {
-        return res.status(400).json({
-          success: false,
-          message: "Order ID is required",
-          redirect: "error"
-        });
-      }
-
-      console.log(`🔍 Payment finish called for order: ${order_id}`);
-
-      // Check actual status from Midtrans
-      let actualStatus = null;
-      let midtransData = null;
-      
-      try {
-        midtransData = await checkMidtransStatus(order_id);
-        actualStatus = midtransData.transaction_status;
-        console.log(`📡 Midtrans status check: ${actualStatus}`);
-        
-        // Update database
-        if (firebaseEnabled) {
-          try {
-            const paymentsRef = db.collection("payments");
-            const snapshot = await paymentsRef.where("order_id", "==", order_id).get();
-            
-            if (!snapshot.empty) {
-              const doc = snapshot.docs[0];
-              const statusInfo = mapTransactionStatus(actualStatus);
-
-              await doc.ref.update({
-                status: statusInfo.status,
-                is_paid: statusInfo.isPaid,
-                transaction_status: actualStatus,
-                updated_at: admin.firestore.FieldValue.serverTimestamp(),
-              });
-              
-              console.log(`💾 Database updated: ${statusInfo.status}, isPaid: ${statusInfo.isPaid}`);
-            }
-          } catch (firebaseError) {
-            console.error("Firebase update error:", firebaseError.message);
-          }
-        }
-      } catch (error) {
-        console.error("❌ Error checking Midtrans status:", error.message);
-        actualStatus = transaction_status;
-      }
-
-      const finalStatus = actualStatus || transaction_status || "unknown";
-      const statusInfo = mapTransactionStatus(finalStatus);
-      
-      let message = "Payment status unknown";
-      let redirect = "error";
-
-      switch (statusInfo.status) {
-        case "success":
-          message = "Payment completed successfully";
-          redirect = "success";
-          break;
-        case "pending":
-          message = "Payment is still pending";
-          redirect = "pending";
-          break;
-        case "cancelled":
-          message = "Payment was cancelled";
-          redirect = "cancelled";
-          break;
-        case "expired":
-          message = "Payment has expired";
-          redirect = "expired";
-          break;
-        case "failed":
-          message = "Payment failed";
-          redirect = "failed";
-          break;
-        default:
-          message = `Payment status: ${finalStatus}`;
-          redirect = "error";
-      }
-
-      return res.json({
-        success: statusInfo.isPaid,
-        message,
-        order_id,
-        status: statusInfo.status,
-        is_paid: statusInfo.isPaid,
-        can_navigate_home: statusInfo.canNavigateHome,
-        transaction_status: finalStatus,
-        redirect,
-        ...(midtransData && {
-          fraud_status: midtransData.fraud_status,
-          payment_type: midtransData.payment_type,
-          gross_amount: midtransData.gross_amount,
-          transaction_time: midtransData.transaction_time
-        })
+      return res.status(404).json({
+        success: false,
+        message: "Payment finish endpoint is disabled",
+        redirect: "error"
       });
     }
 
-    // Check payment status
+    // Check payment status endpoint
     if (method === 'GET' && path.startsWith('/payment-status/')) {
       const orderId = path.split('/payment-status/')[1];
       
@@ -515,14 +519,25 @@ export default async function handler(req, res) {
         });
       }
 
+      // Validate order ID format
+      if (!validateOrderId(orderId)) {
+        return res.status(400).json({ 
+          success: false,
+          message: "Invalid order ID format" 
+        });
+      }
+
       console.log(`🔍 Checking payment status for order: ${orderId}`);
 
       // Check Midtrans directly
       let midtransData = null;
+      let midtransError = null;
+      
       try {
         midtransData = await checkMidtransStatus(orderId);
         console.log(`📡 Midtrans status for ${orderId}: ${midtransData.transaction_status}`);
       } catch (error) {
+        midtransError = error.message;
         console.log(`⚠️ Could not fetch from Midtrans for ${orderId}: ${error.message}`);
       }
 
@@ -570,7 +585,8 @@ export default async function handler(req, res) {
         return res.status(404).json({ 
           success: false,
           message: "Payment not found",
-          order_id: orderId
+          order_id: orderId,
+          ...(midtransError && { midtrans_error: midtransError })
         });
       }
 
@@ -606,7 +622,12 @@ export default async function handler(req, res) {
         can_navigate_home: statusInfo.canNavigateHome,
         transaction_status: currentTransactionStatus,
         message,
-        firebase_update_success: firebaseUpdateSuccess,
+        timestamp: new Date().toISOString(),
+        sources: {
+          firebase: !!firebaseData,
+          midtrans: !!midtransData,
+          firebase_update_success: firebaseUpdateSuccess
+        },
         ...(midtransData && {
           fraud_status: midtransData.fraud_status,
           payment_type: midtransData.payment_type,
@@ -621,15 +642,18 @@ export default async function handler(req, res) {
       success: false,
       message: "Endpoint not found",
       path: path,
-      method: method
+      method: method,
+      available_endpoints: [
+        "GET /",
+        "GET /health",
+        "POST /reset",
+        "POST /generate-snap-token",
+        "POST /midtrans-webhook",
+        "GET /payment-status/:orderId"
+      ]
     });
 
   } catch (error) {
-    console.error("❌ Handler error:", error);
-    return res.status(500).json({ 
-      success: false,
-      message: "Internal server error",
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
-    });
+    return handleError(error, res, 'main handler');
   }
 }
