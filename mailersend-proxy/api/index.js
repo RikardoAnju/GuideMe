@@ -1,6 +1,6 @@
-const axios = require("axios");
-const crypto = require("crypto");
-const admin = require("firebase-admin");
+import axios from "axios";
+import crypto from "crypto";
+import admin from "firebase-admin";
 
 // Initialize Firebase
 let db = null;
