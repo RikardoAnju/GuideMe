@@ -196,7 +196,7 @@ export default async function handler(req, res) {
 
     // Root endpoint
     if (method === 'GET' && path === '/') {
-      return res.json({
+      return res.status(200).json({
         message: "Payment Backend Server - Vercel Edition",
         version: "1.1.0",
         status: "active",
@@ -216,7 +216,7 @@ export default async function handler(req, res) {
 
     // Health check endpoint
     if (method === 'GET' && path === '/health') {
-      return res.json({
+      return res.status(200).json({
         status: "healthy",
         services: {
           firebase: firebaseEnabled,
@@ -258,7 +258,7 @@ export default async function handler(req, res) {
       }
 
       try {
-        await axios.post(
+        const response = await axios.post(
           "https://api.mailersend.com/v1/email",
           {
             from: { email: sanitizeInput(from) },
@@ -275,9 +275,10 @@ export default async function handler(req, res) {
           }
         );
 
-        return res.json({ 
+        return res.status(200).json({ 
           success: true,
-          message: "Email sent successfully" 
+          message: "Email sent successfully",
+          message_id: response.data?.message_id || 'sent'
         });
       } catch (error) {
         console.error("Email sending error:", error.response?.data || error.message);
@@ -420,7 +421,7 @@ export default async function handler(req, res) {
           }
         }
 
-        return res.json({
+        return res.status(200).json({
           success: true,
           snap_token: response.data.token,
           redirect_url: response.data.redirect_url,
@@ -491,20 +492,11 @@ export default async function handler(req, res) {
         }
       }
 
-      return res.json({ 
+      return res.status(200).json({ 
         success: true,
         message: "Webhook processed successfully", 
         order_id, 
         status: statusInfo.status 
-      });
-    }
-
-    // Payment finish redirect endpoint
-    if (method === 'GET' && path === '/payment-finish') {
-      return res.status(404).json({
-        success: false,
-        message: "Payment finish endpoint is disabled",
-        redirect: "error"
       });
     }
 
@@ -614,7 +606,7 @@ export default async function handler(req, res) {
           message = `Payment status: ${currentTransactionStatus}`;
       }
 
-      return res.json({
+      return res.status(200).json({
         success: true,
         order_id: orderId,
         status: statusInfo.status,
