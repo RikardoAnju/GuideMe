@@ -31,10 +31,10 @@
     "vercel",
     "mailersend"
   ],
-  "author": "Your Name",
+  "author": "RikardoAnju",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "your-repo-url"
+    "url": "https://github.com/RikardoAnju/GuideMe.git"
   }
 }
